@@ -43,6 +43,39 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 5. Ejecuta `python3 build.py` y revisa el sitio en local.
 6. Haz commit y push a `main`; el workflow de GitHub Actions ejecuta tests, reconstruye y publica.
 
+## Automatización con Meta API
+
+`fetch_meta.py` descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`. Usa solo la biblioteca estándar.
+
+### Credenciales
+
+1. Crea una app en https://developers.facebook.com/apps/ y un usuario del sistema en Business Manager.
+2. Asígnale la app y el fanpage con tarea **Analizar**.
+3. Genera un token con `read_insights`, `pages_read_engagement` y `pages_show_list`.
+4. Guarda el token como secreto `META_PAGE_TOKEN` y el ID de la página como `META_PAGE_ID` en GitHub, o expórtalos en local. No los escribas en el repositorio ni en el chat.
+
+### Comprobar permisos
+
+```bash
+export META_PAGE_TOKEN="..."
+export META_PAGE_ID="..."
+python3 fetch_meta.py --probe
+```
+
+El modo `--probe` solo informa qué métricas responden `OK` o `ERROR`; no guarda datos ni imprime el token.
+
+### Descargar un mes
+
+```bash
+python3 fetch_meta.py --month 2026-10
+```
+
+Sin `--month` descarga el mes anterior. El archivo queda en `data/archive/2026-10.json`.
+
+También puedes ejecutar el workflow manual **Fetch Meta insights** desde GitHub Actions, con los mismos secretos. El JSON se adjunta como artefacto durante 14 días.
+
+La integración de estos archivos con `build.py` y la publicación mensual automática se activará después de validar la primera descarga real. Hasta entonces, el dashboard sigue usando los CSV de `data/`.
+
 ## Publicar en GitHub Pages
 
 1. Crea un repositorio **público** y sube el contenido de esta carpeta (`fanpage-dashboard/`) como raíz del repositorio.
