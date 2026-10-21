@@ -305,7 +305,7 @@ def click_total(clicks, needle):
 
 
 def build_post(api, post):
-    insights = fetch_insights(api, f"{post['id']}/insights", POST_METRICS, "lifetime")
+    insights = fetch_insights(api, post["id"], POST_METRICS, "lifetime")
     reactions = reaction_total(latest_value(insights.get("post_reactions_by_type_total", {})))
     comments = to_int(((post.get("comments") or {}).get("summary") or {}).get("total_count"))
     shares = to_int((post.get("shares") or {}).get("count"))

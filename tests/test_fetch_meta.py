@@ -128,6 +128,22 @@ class PostMappingTests(unittest.TestCase):
         self.assertEqual(fetch_meta.click_total(clicks, "photo"), 2)
         self.assertIsNone(fetch_meta.click_total(None, "link"))
 
+    def test_build_post_requests_post_insights_path(self):
+        seen = []
+
+        def handler(path, params):
+            seen.append(path)
+            metrics = params["metric"].split(",")
+            return {"data": [insights_response(metric, 1)["data"][0] for metric in metrics]}
+
+        raw = {
+            "id": "123_456",
+            "created_time": "2026-10-05T18:30:00+0000",
+            "attachments": {"data": [{"media_type": "photo"}]},
+        }
+        fetch_meta.build_post(FakeAPI(handler), raw)
+        self.assertEqual(seen, ["123_456/insights"])
+
     def test_build_post_maps_lifetime_metrics(self):
         responses = {
             "post_media_view": insights_response("post_media_view", 1000),
