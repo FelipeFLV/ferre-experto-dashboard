@@ -50,7 +50,7 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 3. Empuja a `main`. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega.
 4. La URL queda como `https://<usuario>.github.io/<repositorio>/`.
 
-Si el workflow no puede habilitar Pages automáticamente, selecciona la fuente manualmente en Settings → Pages y vuelve a ejecutar el workflow.
+Si el workflow falla con `Resource not accessible by integration`, habilita Pages manualmente en **Settings → Pages → Build and deployment → Source: GitHub Actions** y vuelve a ejecutar el workflow.
 
 ## Tests
 
