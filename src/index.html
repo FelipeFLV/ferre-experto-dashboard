@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ferre Experto Pacasmayo · Dashboard del fanpage</title>
+  <meta name="description" content="Métricas del fanpage Ferre Experto Pacasmayo: vistas, alcance, interacciones, publicaciones y audiencia.">
+  <meta property="og:title" content="Ferre Experto Pacasmayo · Dashboard">
+  <meta property="og:description" content="Resumen visual del fanpage: comportamiento, publicaciones y audiencia.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#1C1C1C">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#resumen">Saltar al contenido</a>
+
+  <header class="site-header">
+    <div class="wrap header-main">
+      <a class="brand" href="#resumen" aria-label="Ferre Experto Pacasmayo, inicio">
+        <span class="brand-badge" aria-hidden="true">FE</span>
+        <span class="brand-copy">
+          <strong>FERRE EXPERTO</strong>
+          <span>por Pacasmayo</span>
+        </span>
+      </a>
+      <div class="header-tools">
+        <span class="cutoff-pill">Datos al <strong id="cutoff-label">—</strong></span>
+        <label class="period-select">
+          <span>Período</span>
+          <select id="period-select" aria-label="Seleccionar período"></select>
+        </label>
+      </div>
+    </div>
+    <nav class="site-nav" aria-label="Secciones del dashboard">
+      <div class="wrap nav-inner">
+        <a href="#resumen">Resumen</a>
+        <a href="#publicaciones">Publicaciones</a>
+        <a href="#audiencia">Audiencia</a>
+        <a href="#metodologia">Metodología</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section id="resumen" class="wrap section">
+      <div class="section-head">
+        <p class="eyebrow">Comportamiento del fanpage</p>
+        <h1>Resumen del período</h1>
+        <p class="section-sub" id="period-caption">Cargando datos…</p>
+      </div>
+
+      <div class="kpi-grid">
+        <article class="kpi">
+          <p class="kpi-label">Views</p>
+          <p class="kpi-value" id="kpi-views">—</p>
+          <p class="kpi-delta" id="delta-views"></p>
+        </article>
+        <article class="kpi">
+          <p class="kpi-label">Viewers</p>
+          <p class="kpi-value" id="kpi-viewers">—</p>
+          <p class="kpi-delta" id="delta-viewers"></p>
+        </article>
+        <article class="kpi">
+          <p class="kpi-label">Visits</p>
+          <p class="kpi-value" id="kpi-visits">—</p>
+          <p class="kpi-delta" id="delta-visits"></p>
+        </article>
+        <article class="kpi">
+          <p class="kpi-label">Follows</p>
+          <p class="kpi-value" id="kpi-follows">—</p>
+          <p class="kpi-delta" id="delta-follows"></p>
+        </article>
+      </div>
+
+      <div class="panel chart-panel">
+        <div class="panel-head">
+          <div class="chips" id="metric-chips" role="group" aria-label="Métrica del gráfico">
+            <button type="button" class="chip is-active" data-metric="views">Views</button>
+            <button type="button" class="chip" data-metric="viewers">Viewers</button>
+            <button type="button" class="chip" data-metric="visits">Visits</button>
+            <button type="button" class="chip" data-metric="follows">Follows</button>
+          </div>
+          <div class="segmented" id="granularity-toggle" role="group" aria-label="Granularidad del gráfico">
+            <button type="button" class="is-active" data-granularity="daily">Diario</button>
+            <button type="button" data-granularity="monthly">Mensual</button>
+          </div>
+        </div>
+        <div class="chart-box">
+          <canvas id="trend-chart" aria-label="Evolución de la métrica seleccionada" role="img"></canvas>
+        </div>
+        <p class="note" id="chart-note">Serie diaria · Fuente: Meta Business Suite.</p>
+      </div>
+    </section>
+
+    <section id="publicaciones" class="wrap section">
+      <div class="section-head">
+        <p class="eyebrow">Contenido</p>
+        <h1>Publicaciones</h1>
+        <p class="section-sub">Rendimiento acumulado de cada publicación al cierre del período.</p>
+      </div>
+
+      <div class="toolbar">
+        <label class="search">
+          <span class="sr-only">Buscar publicaciones</span>
+          <input id="post-search" type="search" placeholder="Buscar por texto…" autocomplete="off">
+        </label>
+        <label class="control">
+          <span>Ordenar por</span>
+          <select id="post-sort">
+            <option value="date">Más recientes</option>
+            <option value="reach">Mayor alcance</option>
+            <option value="views">Más vistas</option>
+            <option value="interactions">Más interacciones</option>
+            <option value="engagement">Mayor engagement</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="videos-only">
+          <span>Solo videos</span>
+        </label>
+      </div>
+
+      <div id="posts-grid" class="posts-grid" aria-live="polite"></div>
+      <p id="posts-empty" class="empty" hidden>No hay publicaciones para este período.</p>
+    </section>
+
+    <section id="audiencia" class="wrap section">
+      <div class="section-head">
+        <p class="eyebrow">Público</p>
+        <h1>Audiencia</h1>
+        <p class="section-sub">Seguidores del fanpage: <strong id="followers-label">—</strong> al corte.</p>
+      </div>
+
+      <div class="audience-grid">
+        <article class="panel">
+          <h2>Género</h2>
+          <div class="chart-box chart-box-sm">
+            <canvas id="audience-gender" aria-label="Distribución por género" role="img"></canvas>
+          </div>
+        </article>
+        <article class="panel">
+          <h2>Edad y género</h2>
+          <div class="chart-box chart-box-sm">
+            <canvas id="audience-age" aria-label="Distribución por edad y género" role="img"></canvas>
+          </div>
+        </article>
+        <article class="panel">
+          <h2>Top ciudades</h2>
+          <div class="chart-box chart-box-bars">
+            <canvas id="audience-cities" aria-label="Principales ciudades" role="img"></canvas>
+          </div>
+        </article>
+        <article class="panel">
+          <h2>Top países</h2>
+          <div class="chart-box chart-box-bars">
+            <canvas id="audience-countries" aria-label="Principales países" role="img"></canvas>
+          </div>
+        </article>
+      </div>
+      <p class="note">El desglose por dispositivo no está disponible en los exports de Meta Business Suite.</p>
+    </section>
+
+    <section id="metodologia" class="wrap section">
+      <div class="section-head">
+        <p class="eyebrow">Transparencia</p>
+        <h1>Metodología</h1>
+        <p class="section-sub">Cómo leer este informe y de dónde salen los números.</p>
+      </div>
+      <div class="panel prose">
+        <p><strong>Fuente:</strong> exportaciones CSV de Meta Business Suite del fanpage Ferre Experto Pacasmayo. <strong>Fecha de corte:</strong> <span id="cutoff-copy">—</span>.</p>
+        <ul>
+          <li><strong>Views:</strong> veces que se vieron las publicaciones del fanpage.</li>
+          <li><strong>Viewers:</strong> personas únicas que vieron contenido.</li>
+          <li><strong>Visits:</strong> visitas a la página del fanpage.</li>
+          <li><strong>Follows:</strong> seguidores netos ganados en el período.</li>
+          <li><strong>Alcance:</strong> personas únicas alcanzadas por una publicación.</li>
+          <li><strong>Interacciones:</strong> reacciones + comentarios + compartidos.</li>
+          <li><strong>Engagement:</strong> interacciones divididas entre alcance. Se muestra “—” cuando no hay alcance o vistas comparables.</li>
+        </ul>
+        <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron. Octubre está incompleto: la variación se etiqueta como “mes en curso”.</p>
+        <p>La audiencia corresponde a los seguidores del fanpage y es una foto fija al corte; no cambia con el selector de mes.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Ferre Experto Pacasmayo · Dashboard generado a partir de Meta Business Suite.</p>
+      <p class="footer-note">Datos al <span id="footer-cutoff">—</span>.</p>
+    </div>
+  </footer>
+</body>
+</html>
