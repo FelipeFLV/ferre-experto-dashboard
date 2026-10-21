@@ -257,6 +257,16 @@ def merge_videos(posts, videos):
     return posts
 
 
+def has_image_optimizer():
+    if shutil.which("sips"):
+        return True
+    try:
+        import PIL  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def image_for(date, extension):
     if (ASSETS / f"{date}.png").exists():
         return f"assets/posts/{date}{extension}"
@@ -273,7 +283,7 @@ def build_payload():
     posts = merge_videos(read_posts(DATA / "posts.csv"), read_videos(DATA / "videos.csv"))
     posts.sort(key=lambda item: item["date"], reverse=True)
 
-    extension = ".jpg" if shutil.which("sips") else ".png"
+    extension = ".jpg" if has_image_optimizer() else ".png"
     for post in posts:
         post.setdefault("image", image_for(post["date"], extension))
         post["month"] = post["date"][:7]
