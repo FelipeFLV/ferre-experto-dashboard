@@ -76,6 +76,10 @@ jobs:
                   for metric in (
                       "post_media_view",
                       "post_total_media_view_unique",
+                      "post_reactions_by_type_total",
+                      "post_clicks",
+                      "post_clicks_by_type",
+                      "post_activity_by_action_type",
                       "photo_view",
                       "photo_impressions",
                       "photo_impressions_unique",
@@ -93,4 +97,20 @@ jobs:
                       except fetch_meta.MetaAPIError as exc:
                           payload = {"error": str(exc)}
                       show(f"media {media_id} {metric}", payload)
+                  for metric in (
+                      "total_video_views",
+                      "total_video_views_unique",
+                      "total_video_impressions",
+                      "total_video_impressions_unique",
+                      "total_video_complete_views",
+                      "total_video_view_total_time",
+                      "total_video_avg_time_watched",
+                  ):
+                      try:
+                          payload = api.get(f"{media_id}/video_insights", {
+                              "metric": metric,
+                          })
+                      except fetch_meta.MetaAPIError as exc:
+                          payload = {"error": str(exc)}
+                      show(f"video_insights {media_id} {metric}", payload)
           PY
