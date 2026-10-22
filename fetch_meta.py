@@ -533,10 +533,21 @@ def build_month_payload(api, page_id, first, last):
 
 def save_archive(payload, path):
     path = Path(path)
+    if path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            current = None
+        if current is not None:
+            before = {key: value for key, value in current.items() if key != "fetched_at"}
+            after = {key: value for key, value in payload.items() if key != "fetched_at"}
+            if before == after:
+                return False
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(path)
+    return True
 
 
 def probe(api, page_id, first, last):
@@ -612,7 +623,7 @@ def main(argv=None):
         raise SystemExit(f"Error de Meta: {exc}") from None
 
     output = Path(args.output) if args.output else ARCHIVE / f"{payload['month']}.json"
-    save_archive(payload, output)
+    written = save_archive(payload, output)
 
     totals = {
         key: sum(row[key] for row in payload["daily"])
@@ -624,7 +635,10 @@ def main(argv=None):
         f"Views: {totals['views']} · Viewers: {totals['viewers']} · "
         f"Visits: {totals['visits']} · Follows: {totals['follows']}"
     )
-    print(f"Archivo: {output}")
+    if written:
+        print(f"Archivo: {output}")
+    else:
+        print(f"Sin cambios reales; se conserva {output}")
     return 0
 
 

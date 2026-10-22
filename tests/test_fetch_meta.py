@@ -424,9 +424,47 @@ class ArchiveTests(unittest.TestCase):
     def test_save_archive_is_valid_json(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "2026-10.json"
-            fetch_meta.save_archive({"month": "2026-10", "posts": []}, path)
+            written = fetch_meta.save_archive({"month": "2026-10", "posts": []}, path)
+            self.assertTrue(written)
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {"month": "2026-10", "posts": []})
             self.assertFalse(path.with_suffix(".json.tmp").exists())
+
+    def test_save_archive_skips_when_only_fetched_at_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "2026-10.json"
+            first = {
+                "month": "2026-10",
+                "fetched_at": "2026-10-21T10:00:00-05:00",
+                "daily": [{"date": "2026-10-21", "views": 10}],
+            }
+            second = {
+                "month": "2026-10",
+                "fetched_at": "2026-10-21T11:00:00-05:00",
+                "daily": [{"date": "2026-10-21", "views": 10}],
+            }
+            self.assertTrue(fetch_meta.save_archive(first, path))
+            self.assertFalse(fetch_meta.save_archive(second, path))
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["fetched_at"], first["fetched_at"])
+
+    def test_save_archive_writes_when_data_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "2026-10.json"
+            first = {
+                "month": "2026-10",
+                "fetched_at": "2026-10-21T10:00:00-05:00",
+                "daily": [{"date": "2026-10-21", "views": 10}],
+            }
+            second = {
+                "month": "2026-10",
+                "fetched_at": "2026-10-21T11:00:00-05:00",
+                "daily": [{"date": "2026-10-21", "views": 11}],
+            }
+            self.assertTrue(fetch_meta.save_archive(first, path))
+            self.assertTrue(fetch_meta.save_archive(second, path))
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["daily"][0]["views"], 11)
+            self.assertEqual(saved["fetched_at"], second["fetched_at"])
 
 
 if __name__ == "__main__":

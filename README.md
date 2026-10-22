@@ -37,7 +37,7 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 ## Actualizar datos
 
 1. Ejecuta el workflow **Fetch Meta insights** desde GitHub Actions. Si dejas el mes vacío, descarga el mes anterior.
-2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea y, al terminar, el workflow de Pages reconstruye y publica el dashboard.
+2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea si cambiaron las métricas y, al terminar, Pages reconstruye y publica el dashboard. Si solo cambia `fetched_at`, no guarda, no commitea y no redeploya. El dashboard muestra la fecha de actualización del archive.
 3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
 4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
 5. En local: `python3 build.py` y `python3 serve.py`.

@@ -223,6 +223,7 @@ def build_payload(archive_dir=None):
         "page": {
             "name": page.get("name", "Ferre Experto Pacasmayo"),
             "cutoff": cutoff,
+            "updatedAt": latest.get("fetched_at"),
             "followers": to_int(page.get("followers")) or 0,
         },
         "months": months,

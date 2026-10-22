@@ -14,6 +14,15 @@ const NUMBER = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 0 });
 const DECIMAL = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const DATE_SHORT = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short" });
 const DATE_LONG = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "long", year: "numeric" });
+const DATE_TIME = new Intl.DateTimeFormat("es-PE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/Lima",
+});
 const METRIC_LABELS = { views: "Views", viewers: "Viewers", visits: "Visits", follows: "Follows" };
 const TYPE_LABELS = {
   photos: "Foto",
@@ -66,6 +75,13 @@ function formatDateShort(iso) {
 function formatCutoff(iso) {
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatUpdated(iso) {
+  if (!iso) return "—";
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return "—";
+  return DATE_TIME.format(value);
 }
 
 function typeLabel(type) {
@@ -122,6 +138,9 @@ function setupHeader() {
     node.textContent = formatCutoff(cutoff);
   });
   document.querySelector("#cutoff-copy").textContent = formatCutoff(cutoff);
+  document.querySelectorAll("#footer-updated, #updated-copy").forEach((node) => {
+    node.textContent = formatUpdated(state.data.page.updatedAt);
+  });
   document.querySelector("#followers-label").textContent = NUMBER.format(state.data.page.followers);
 
   const select = document.querySelector("#period-select");

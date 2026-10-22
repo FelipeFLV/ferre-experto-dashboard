@@ -75,6 +75,7 @@ class BuildTests(unittest.TestCase):
 
     def test_payload_shape(self):
         self.assertEqual(self.payload["page"]["followers"], 2743)
+        self.assertEqual(self.payload["page"]["updatedAt"], "2026-10-21T22:54:14-05:00")
         self.assertEqual(len(self.payload["months"]), 3)
         json.dumps(self.payload)
 
