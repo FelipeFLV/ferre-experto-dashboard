@@ -9,8 +9,8 @@
   <meta property="og:description" content="Resumen visual del fanpage: comportamiento, publicaciones y audiencia.">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#1C1C1C">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="stylesheet" href="styles.css?v=20261022">
   <script src="vendor/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>
 </head>
@@ -20,7 +20,9 @@
   <header class="site-header">
     <div class="wrap header-main">
       <a class="brand" href="#resumen" aria-label="Ferre Experto Pacasmayo, inicio">
-        <span class="brand-badge" aria-hidden="true">FE</span>
+        <span class="brand-mark" aria-hidden="true">
+          <img src="logo-mark.png" alt="" width="48" height="48">
+        </span>
         <span class="brand-copy">
           <strong>FERRE EXPERTO</strong>
           <span>por Pacasmayo</span>
@@ -194,7 +196,10 @@
 
   <footer class="site-footer">
     <div class="wrap">
-      <p>Ferre Experto Pacasmayo · Dashboard generado a partir de Meta Graph API.</p>
+      <div class="footer-brand">
+        <img src="logo-full.png" alt="Ferre Experto por Pacasmayo" width="154" height="58">
+        <p>Dashboard generado a partir de Meta Graph API.</p>
+      </div>
       <p class="footer-note">Datos al <span id="footer-cutoff">—</span> · Actualizado <span id="footer-updated">—</span>.</p>
     </div>
   </footer>

@@ -115,17 +115,20 @@ p {
   text-decoration: none;
 }
 
-.brand-badge {
+.brand-mark {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
+  padding: 6px;
   border-radius: 12px;
-  background: var(--red);
-  color: #fff;
-  font-weight: 900;
-  font-size: 18px;
-  letter-spacing: 0.04em;
+  background: #fff;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
 }
 
 .brand-copy {
@@ -710,9 +713,25 @@ p {
 
 .site-footer .wrap {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 18px;
   flex-wrap: wrap;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.footer-brand img {
+  width: 154px;
+  height: auto;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .footer-note {

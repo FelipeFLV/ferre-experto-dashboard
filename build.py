@@ -373,7 +373,7 @@ def optimize_images():
 
 def copy_static():
     DIST.mkdir(parents=True, exist_ok=True)
-    for name in ("index.html", "styles.css", "app.js", "favicon.svg"):
+    for name in ("index.html", "styles.css", "app.js", "favicon.png", "logo-mark.png", "logo-full.png"):
         shutil.copy2(SRC / name, DIST / name)
     vendor_target = DIST / "vendor"
     vendor_target.mkdir(parents=True, exist_ok=True)
