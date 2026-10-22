@@ -377,7 +377,8 @@ def copy_static():
         shutil.copy2(SRC / name, DIST / name)
     vendor_target = DIST / "vendor"
     vendor_target.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SRC / "vendor" / "chart.umd.min.js", vendor_target / "chart.umd.min.js")
+    for name in ("chart.umd.min.js", "html2canvas.min.js", "jspdf.umd.min.js"):
+        shutil.copy2(SRC / "vendor" / name, vendor_target / name)
 
 
 def main():

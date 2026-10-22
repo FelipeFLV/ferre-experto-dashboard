@@ -8,6 +8,7 @@ const state = {
   videosOnly: false,
   expanded: new Set(),
   trendChart: null,
+  pdfBusy: false,
   range: { start: "", end: "" },
 };
 
@@ -315,6 +316,7 @@ function renderKPIs() {
     ? `${rangeLabel()} · datos al ${formatCutoff(state.data.page.cutoff)}.`
     : `${monthLabel(state.month)} · datos al ${formatCutoff(state.data.page.cutoff)}.`;
   document.querySelector("#period-caption").textContent = caption;
+  updatePdfButton();
 }
 
 function renderTrendChart() {
@@ -754,7 +756,523 @@ function renderAudience() {
   else showEmpty("#audience-countries", "Meta no devuelve países de la audiencia vía API.");
 }
 
+const PDF_METRIC_KEYS = ["views", "viewers", "visits", "follows"];
+const PDF_POSTS_PER_PAGE = 4;
+
+function updatePdfButton() {
+  const button = document.querySelector("#download-pdf");
+  if (!button) return;
+  const isMonth = state.month !== "all" && state.month !== "custom" && Boolean(monthMeta(state.month));
+  button.disabled = state.pdfBusy || !isMonth;
+  button.textContent = state.pdfBusy ? "Generando PDF…" : "Descargar PDF";
+  button.title = isMonth
+    ? `Descargar reporte de ${monthMeta(state.month).label}`
+    : "Selecciona un mes para descargar el PDF";
+  button.setAttribute("aria-busy", String(state.pdfBusy));
+}
+
+function pdfMonthlyRow(monthKey) {
+  return state.data.results.monthly.find((row) => row.month === monthKey) || null;
+}
+
+function pdfPreviousMonthlyRow(monthKey) {
+  const index = state.data.months.findIndex((month) => month.key === monthKey);
+  if (index <= 0) return null;
+  return pdfMonthlyRow(state.data.months[index - 1].key);
+}
+
+function pdfSumRows(rows) {
+  return rows.reduce((acc, row) => {
+    for (const key of PDF_METRIC_KEYS) acc[key] += row[key] || 0;
+    return acc;
+  }, { views: 0, viewers: 0, visits: 0, follows: 0 });
+}
+
+function pdfDelta(row, previous, key, isPartial) {
+  if (!previous) return { text: "Sin mes anterior comparable", className: "" };
+  if (!previous[key]) return { text: "Sin base de comparación", className: "" };
+  const change = ((row[key] - previous[key]) / previous[key]) * 100;
+  const sign = change > 0 ? "+" : "";
+  return {
+    text: `${sign}${decimal(change)}% vs. ${monthMeta(previous.month).short}${isPartial ? " · mes en curso" : ""}`,
+    className: change >= 0 ? "is-up" : "is-down",
+  };
+}
+
+function pdfGrowthNarrative(row, previous, isPartial) {
+  if (!previous) return "No hay un mes anterior comparable para calcular variaciones.";
+  const changes = PDF_METRIC_KEYS
+    .filter((key) => previous[key] > 0)
+    .map((key) => ({ key, pct: ((row[key] - previous[key]) / previous[key]) * 100 }));
+  if (!changes.length) return "No hay base suficiente para calcular variaciones.";
+
+  const sorted = [...changes].sort((a, b) => b.pct - a.pct);
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  const parts = [];
+
+  if (best.pct > 0) {
+    parts.push(`El mayor avance fue ${METRIC_LABELS[best.key]} (+${decimal(best.pct)}%).`);
+  } else {
+    parts.push(`Ninguna métrica creció frente a ${monthMeta(previous.month).label}.`);
+  }
+  if (worst.pct < 0) {
+    parts.push(`La mayor caída fue ${METRIC_LABELS[worst.key]} (${decimal(worst.pct)}%).`);
+  } else {
+    parts.push("No hubo caídas entre las métricas comparables.");
+  }
+  if (isPartial) parts.push("El mes está en curso; la comparación es preliminar.");
+  return parts.join(" ");
+}
+
+function pdfPage(content, { className = "", showHead = true } = {}) {
+  const meta = monthMeta(state.month);
+  const head = showHead
+    ? `<div class="pdf-page-head"><span>Ferre Experto · Reporte mensual</span><span>${escapeHtml(meta ? meta.label : "")}</span></div>`
+    : "";
+  return `<section class="pdf-page ${className}">
+    ${head}
+    ${content}
+    <div class="pdf-page-footer">
+      <span>Ferre Experto Pacasmayo · Datos al ${escapeHtml(formatCutoff(state.data.page.cutoff))}</span>
+      <span class="pdf-page-number"></span>
+    </div>
+  </section>`;
+}
+
+function pdfSummaryPage(row, previous, meta) {
+  const isPartial = Boolean(meta.partial);
+  const kpis = PDF_METRIC_KEYS.map((key) => {
+    const delta = pdfDelta(row, previous, key, isPartial);
+    return `<article class="pdf-kpi">
+      <p class="pdf-kpi-label">${escapeHtml(METRIC_LABELS[key])}</p>
+      <p class="pdf-kpi-value">${escapeHtml(number(row[key]))}</p>
+      <p class="pdf-kpi-delta ${delta.className}">${escapeHtml(delta.text)}</p>
+    </article>`;
+  }).join("");
+
+  return pdfPage(`
+    <div class="pdf-cover-hero">
+      <div class="pdf-cover-brand">
+        <img src="logo-full.png?v=20261022b" alt="Pandora Marketing con Propósito">
+        <span>Ferre Experto Pacasmayo</span>
+      </div>
+      <p class="pdf-eyebrow">Reporte mensual</p>
+      <h1>${escapeHtml(meta.label)}${isPartial ? " <span class=\"pdf-status-badge\">Mes en curso</span>" : ""}</h1>
+      <p class="pdf-cover-sub">Resumen ejecutivo · Datos al ${escapeHtml(formatCutoff(state.data.page.cutoff))}</p>
+    </div>
+    <div class="pdf-summary-body">
+      <div class="pdf-summary-topline">
+        <p class="pdf-section-kicker">Crecimiento del período</p>
+        <p class="pdf-section-note">${previous ? `Comparado con ${escapeHtml(monthMeta(previous.month).label)}` : "Sin mes anterior comparable"}</p>
+      </div>
+      <div class="pdf-kpi-grid">${kpis}</div>
+      <div class="pdf-growth-box">
+        <h2>Lectura del período</h2>
+        <p>${escapeHtml(pdfGrowthNarrative(row, previous, isPartial))}</p>
+      </div>
+      <p class="pdf-summary-meta">Actualizado ${escapeHtml(formatUpdated(state.data.page.updatedAt))} · Fuente: Meta Graph API.</p>
+    </div>
+  `, { className: "pdf-summary", showHead: false });
+}
+
+function pdfEvolutionPage(rows, row) {
+  const cards = PDF_METRIC_KEYS.map((key) => `
+    <article class="pdf-chart-card">
+      <div class="pdf-chart-head">
+        <h3>${escapeHtml(METRIC_LABELS[key])}</h3>
+        <span>${escapeHtml(number(row[key]))}</span>
+      </div>
+      <div class="pdf-chart-box"><canvas id="pdf-chart-${key}" aria-label="Evolución diaria de ${escapeHtml(METRIC_LABELS[key])}"></canvas></div>
+    </article>
+  `).join("");
+
+  return pdfPage(`
+    <div class="pdf-section-head">
+      <p class="pdf-eyebrow">Evolución diaria</p>
+      <h1>Comportamiento del período</h1>
+      <p class="pdf-section-note">Serie diaria de las cuatro métricas principales.</p>
+    </div>
+    ${rows.length ? `<div class="pdf-chart-grid">${cards}</div>` : `<p class="pdf-empty">No hay datos diarios para este mes.</p>`}
+  `);
+}
+
+function pdfMetricBlock(label, value) {
+  return `<div class="pdf-metric"><span class="pdf-metric-label">${escapeHtml(label)}</span><span class="pdf-metric-value">${escapeHtml(value)}</span></div>`;
+}
+
+function pdfPostCard(post) {
+  const metrics = post.metrics || {};
+  const audienceValue = metrics.reach != null ? metrics.reach : metrics.viewers;
+  const values = [
+    ["Views", number(metrics.views)],
+    [metrics.reach != null ? "Alcance" : "Viewers", number(audienceValue)],
+    ["Interacciones", number(metrics.interactions)],
+    ["Engagement", percent(post.engagementRate)],
+    ["Reacciones", number(metrics.reactions)],
+    ["Comentarios", number(metrics.comments)],
+    ["Compartidos", number(metrics.shares)],
+    ["Clics totales", number(metrics.totalClicks)],
+    ["Clics enlace", number(metrics.linkClicks)],
+  ];
+  const media = post.image
+    ? `<img src="${escapeHtml(post.image)}" alt="Publicación del ${escapeHtml(formatDate(post.date))}">`
+    : `<div class="pdf-post-placeholder"><strong>${post.isVideo ? "Video sin captura" : "Publicación sin captura"}</strong><span>Disponible en la publicación original</span></div>`;
+  const caption = post.caption
+    ? `<p class="pdf-post-caption">${escapeHtml(post.caption)}</p>`
+    : `<p class="pdf-post-caption is-empty">Video publicado el ${escapeHtml(formatDate(post.date))}.</p>`;
+
+  return `<article class="pdf-post-card">
+    <div class="pdf-post-media">${media}</div>
+    <div class="pdf-post-body">
+      <div class="pdf-post-meta">
+        <span class="pdf-pill">${escapeHtml(typeLabel(post.type))}</span>
+        <time datetime="${escapeHtml(post.date)}">${escapeHtml(formatDate(post.date))}</time>
+      </div>
+      ${caption}
+      <div class="pdf-metrics-grid">${values.map(([label, value]) => pdfMetricBlock(label, value)).join("")}</div>
+    </div>
+  </article>`;
+}
+
+function pdfPostsPages(posts) {
+  if (!posts.length) {
+    return [pdfPage(`
+      <div class="pdf-section-head">
+        <p class="pdf-eyebrow">Contenido</p>
+        <h1>Publicaciones del mes</h1>
+      </div>
+      <p class="pdf-empty">No hay publicaciones para este mes.</p>
+    `)];
+  }
+
+  const pages = [];
+  for (let index = 0; index < posts.length; index += PDF_POSTS_PER_PAGE) {
+    const chunk = posts.slice(index, index + PDF_POSTS_PER_PAGE);
+    pages.push(pdfPage(`
+      <div class="pdf-section-head">
+        <p class="pdf-eyebrow">Contenido</p>
+        <h1>${index === 0 ? "Publicaciones del mes" : "Publicaciones (continuación)"}</h1>
+        <p class="pdf-section-note">${posts.length} publicaciones · todas las del mes, sin filtros de búsqueda, orden o tipo.</p>
+      </div>
+      <div class="pdf-post-grid">${chunk.map(pdfPostCard).join("")}</div>
+    `));
+  }
+  return pages;
+}
+
+function pdfAudiencePanel(id, title, hasData, emptyText) {
+  return `<article class="pdf-audience-card">
+    <h3>${escapeHtml(title)}</h3>
+    ${hasData ? `<div class="pdf-chart-box"><canvas id="pdf-audience-${id}" aria-label="${escapeHtml(title)}"></canvas></div>` : `<p class="pdf-empty-note">${escapeHtml(emptyText)}</p>`}
+  </article>`;
+}
+
+function pdfAudiencePage() {
+  const audience = state.data.audience || {};
+  const ageGender = audience.ageGender || [];
+  const cities = audience.cities || [];
+  const countries = audience.countries || [];
+  const note = audience.source === "business-suite"
+    ? "Datos demográficos del export de Meta Business Suite. El resto de métricas proviene de la API."
+    : audience.source === "api"
+      ? "Datos demográficos de Meta Graph API."
+      : "No hay datos demográficos disponibles. Exporta la audiencia desde Meta Business Suite y reemplaza data/audience.csv.";
+
+  return pdfPage(`
+    <div class="pdf-section-head">
+      <p class="pdf-eyebrow">Público</p>
+      <h1>Audiencia</h1>
+      <p class="pdf-section-note">Seguidores del fanpage: <strong>${escapeHtml(NUMBER.format(state.data.page.followers))}</strong> al corte. La audiencia es una foto fija y no cambia con el mes.</p>
+    </div>
+    <div class="pdf-audience-grid">
+      ${pdfAudiencePanel("gender", "Género", ageGender.length > 0, "Meta no devuelve el desglose por género vía API.")}
+      ${pdfAudiencePanel("age", "Edad y género", ageGender.length > 0, "Meta no devuelve el desglose por edad vía API.")}
+      ${pdfAudiencePanel("cities", "Top ciudades", cities.length > 0, "Meta no devuelve ciudades de la audiencia vía API.")}
+      ${pdfAudiencePanel("countries", "Top países", countries.length > 0, "Meta no devuelve países de la audiencia vía API.")}
+    </div>
+    <p class="pdf-footnote">${escapeHtml(note)}</p>
+  `);
+}
+
+function pdfMethodologyPage() {
+  return pdfPage(`
+    <div class="pdf-section-head">
+      <p class="pdf-eyebrow">Transparencia</p>
+      <h1>Metodología y notas</h1>
+      <p class="pdf-section-note">Cómo leer este informe y de dónde salen los números.</p>
+    </div>
+    <div class="pdf-prose">
+      <p><strong>Fuente:</strong> Graph API de Meta (Page Insights) del fanpage Ferre Experto Pacasmayo. <strong>Fecha de corte:</strong> ${escapeHtml(formatCutoff(state.data.page.cutoff))}. <strong>Actualizado:</strong> ${escapeHtml(formatUpdated(state.data.page.updatedAt))}.</p>
+      <ul>
+        <li><strong>Views:</strong> veces que se vieron las publicaciones del fanpage.</li>
+        <li><strong>Viewers:</strong> personas únicas que vieron contenido.</li>
+        <li><strong>Visits:</strong> visitas a la página del fanpage.</li>
+        <li><strong>Follows:</strong> seguidores netos ganados en el período.</li>
+        <li><strong>Viewers:</strong> personas únicas que vieron una publicación; Meta no expone alcance por publicación vía API.</li>
+        <li><strong>Interacciones:</strong> reacciones + comentarios + compartidos.</li>
+        <li><strong>Engagement:</strong> interacciones divididas entre alcance o, si no hay alcance, entre views. Se muestra “—” cuando no hay base comparable.</li>
+      </ul>
+      <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron. El mes en curso se marca como parcial y no se compara como un mes cerrado.</p>
+      <p>La audiencia corresponde a los seguidores del fanpage y es una foto fija al corte; no cambia con el selector de mes. Meta dejó de exponer la demografía vía API, por lo que se usa el export de Meta Business Suite cuando está disponible.</p>
+      <p>Reporte generado automáticamente desde el dashboard. Las variaciones se calculan contra el mes anterior; si el mes está en curso, la comparación es preliminar.</p>
+    </div>
+  `);
+}
+
+function pdfLineChart(canvas, rows, metric) {
+  return new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: rows.map((row) => formatDateShort(row.date)),
+      datasets: [{
+        data: rows.map((row) => row[metric]),
+        borderColor: "#c62828",
+        backgroundColor: "rgba(198, 40, 40, 0.12)",
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.32,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: { maxTicksLimit: 6, autoSkip: true, maxRotation: 0, color: "#5f5f5f", font: { size: 9 } },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(28, 28, 28, 0.07)" },
+          border: { display: false },
+          ticks: { precision: 0, color: "#5f5f5f", font: { size: 9 }, callback: (value) => NUMBER.format(value) },
+        },
+      },
+    },
+  });
+}
+
+function createPdfAudienceCharts(report) {
+  if (typeof Chart === "undefined") return [];
+  const charts = [];
+  const audience = state.data.audience || {};
+  const ageGender = audience.ageGender || [];
+  const cities = audience.cities || [];
+  const countries = audience.countries || [];
+
+  if (ageGender.length) {
+    const men = ageGender.reduce((sum, row) => sum + row.men, 0);
+    const women = ageGender.reduce((sum, row) => sum + row.women, 0);
+    const total = men + women;
+    const genderCanvas = report.querySelector("#pdf-audience-gender");
+    if (genderCanvas) {
+      charts.push(new Chart(genderCanvas, {
+        type: "doughnut",
+        data: {
+          labels: ["Hombres", "Mujeres"],
+          datasets: [{
+            data: [total > 0 ? (men / total) * 100 : 0, total > 0 ? (women / total) * 100 : 0],
+            backgroundColor: ["#c62828", "#1c1c1c"],
+            borderColor: "#ffffff",
+            borderWidth: 3,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          cutout: "62%",
+          plugins: {
+            legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 9 } } },
+            tooltip: { enabled: false },
+          },
+        },
+      }));
+    }
+
+    const ageCanvas = report.querySelector("#pdf-audience-age");
+    if (ageCanvas) {
+      charts.push(new Chart(ageCanvas, {
+        type: "bar",
+        data: {
+          labels: ageGender.map((row) => row.age),
+          datasets: [
+            { label: "Hombres", data: ageGender.map((row) => row.men), backgroundColor: "#c62828", borderRadius: 3 },
+            { label: "Mujeres", data: ageGender.map((row) => row.women), backgroundColor: "#1c1c1c", borderRadius: 3 },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: {
+            legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 9 } } },
+            tooltip: { enabled: false },
+          },
+          scales: {
+            x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 8 } } },
+            y: {
+              beginAtZero: true,
+              grid: { color: "rgba(28, 28, 28, 0.07)" },
+              border: { display: false },
+              ticks: { callback: (value) => `${value}%`, font: { size: 8 } },
+            },
+          },
+        },
+      }));
+    }
+  }
+
+  const horizontal = (id, rows, color) => {
+    const canvas = report.querySelector(`#pdf-audience-${id}`);
+    if (!canvas) return;
+    charts.push(new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: rows.map((row) => row.name),
+        datasets: [{ data: rows.map((row) => row.pct), backgroundColor: color, borderRadius: 3 }],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: "rgba(28, 28, 28, 0.07)" },
+            border: { display: false },
+            ticks: { callback: (value) => `${value}%`, font: { size: 8 } },
+          },
+          y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false, font: { size: 8 } } },
+        },
+      },
+    }));
+  };
+
+  horizontal("cities", cities, "#c62828");
+  horizontal("countries", countries, "#1c1c1c");
+  return charts;
+}
+
+function buildPdfReport(monthKey) {
+  const meta = monthMeta(monthKey);
+  const daily = state.data.results.daily.filter((row) => row.date.startsWith(monthKey));
+  const row = pdfMonthlyRow(monthKey) || { month: monthKey, ...pdfSumRows(daily) };
+  const previous = pdfPreviousMonthlyRow(monthKey);
+  const posts = state.data.posts
+    .filter((post) => post.month === monthKey || post.date.startsWith(monthKey))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const pages = [
+    pdfSummaryPage(row, previous, meta),
+    pdfEvolutionPage(daily, row),
+    ...pdfPostsPages(posts),
+    pdfAudiencePage(),
+    pdfMethodologyPage(),
+  ];
+
+  const report = document.querySelector("#pdf-report");
+  report.innerHTML = pages.join("");
+  const pageNodes = [...report.querySelectorAll(".pdf-page")];
+  pageNodes.forEach((page, index) => {
+    const label = page.querySelector(".pdf-page-number");
+    if (label) label.textContent = `Página ${index + 1} de ${pageNodes.length}`;
+  });
+
+  const charts = [];
+  PDF_METRIC_KEYS.forEach((key) => {
+    const canvas = report.querySelector(`#pdf-chart-${key}`);
+    if (canvas) charts.push(pdfLineChart(canvas, daily, key));
+  });
+  charts.push(...createPdfAudienceCharts(report));
+  return { report, charts };
+}
+
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+async function waitForImages(root) {
+  const images = [...root.querySelectorAll("img")];
+  await Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", resolve, { once: true });
+    });
+  }));
+}
+
+async function downloadPdfReport() {
+  if (state.pdfBusy) return;
+  if (state.month === "all" || state.month === "custom" || !monthMeta(state.month)) return;
+  if (typeof Chart === "undefined" || typeof html2canvas !== "function" || !(window.jspdf && window.jspdf.jsPDF)) {
+    document.querySelector("#period-caption").textContent = "No se pudo cargar el generador de PDF. Recarga la página e intenta nuevamente.";
+    return;
+  }
+
+  state.pdfBusy = true;
+  updatePdfButton();
+  const report = document.querySelector("#pdf-report");
+  let charts = [];
+
+  try {
+    const built = buildPdfReport(state.month);
+    charts = built.charts;
+    await nextFrame();
+    await waitForImages(report);
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await nextFrame();
+
+    const pages = [...report.querySelectorAll(".pdf-page")];
+    if (!pages.length) throw new Error("El reporte no tiene páginas.");
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+    pdf.setProperties({
+      title: `Reporte mensual ${monthLabel(state.month)}`,
+      subject: "Métricas del fanpage Ferre Experto Pacasmayo",
+      author: "Ferre Experto Pacasmayo",
+      creator: "Dashboard Ferre Experto",
+    });
+
+    for (let index = 0; index < pages.length; index += 1) {
+      const canvas = await html2canvas(pages[index], {
+        scale: 2,
+        backgroundColor: "#f5f4f1",
+        useCORS: true,
+        logging: false,
+        imageTimeout: 20000,
+        width: 794,
+        height: 1123,
+      });
+      const image = canvas.toDataURL("image/jpeg", 0.9);
+      if (index > 0) pdf.addPage();
+      pdf.addImage(image, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+    }
+
+    pdf.save(`reporte-ferre-experto-${state.month}.pdf`);
+  } catch (error) {
+    console.error(error);
+    document.querySelector("#period-caption").textContent = "No se pudo generar el PDF. Intenta nuevamente.";
+  } finally {
+    charts.forEach((chart) => chart.destroy());
+    report.innerHTML = "";
+    state.pdfBusy = false;
+    updatePdfButton();
+  }
+}
+
 function bindEvents() {
+  document.querySelector("#download-pdf").addEventListener("click", downloadPdfReport);
+
   document.querySelector("#period-select").addEventListener("change", (event) => {
     state.month = event.target.value;
     toggleCustomRange();

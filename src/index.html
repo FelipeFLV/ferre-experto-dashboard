@@ -10,9 +10,11 @@
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#1C1C1C">
   <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="stylesheet" href="styles.css?v=20261022b">
+  <link rel="stylesheet" href="styles.css?v=20261022c">
   <script src="vendor/chart.umd.min.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="vendor/html2canvas.min.js" defer></script>
+  <script src="vendor/jspdf.umd.min.js" defer></script>
+  <script src="app.js?v=20261022c" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#resumen">Saltar al contenido</a>
@@ -34,6 +36,9 @@
           <span>Período</span>
           <select id="period-select" aria-label="Seleccionar período"></select>
         </label>
+        <button type="button" id="download-pdf" class="pdf-button" disabled title="Selecciona un mes para descargar el PDF">
+          Descargar PDF
+        </button>
         <div id="custom-range" class="custom-range" hidden>
           <label>Desde <input type="date" id="range-start" aria-label="Fecha inicial"></label>
           <label>Hasta <input type="date" id="range-end" aria-label="Fecha final"></label>
@@ -193,6 +198,8 @@
       </div>
     </section>
   </main>
+
+  <div id="pdf-report" class="pdf-report" aria-hidden="true"></div>
 
   <footer class="site-footer">
     <div class="wrap">
