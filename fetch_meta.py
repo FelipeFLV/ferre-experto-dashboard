@@ -219,7 +219,7 @@ def fetch_insights(api, object_id, metrics, period, since=None, until=None):
     try:
         payload = api.get(f"{object_id}/insights", params)
     except MetaAPIError as exc:
-        if exc.code != 100 or len(metrics) == 1:
+        if len(metrics) == 1:
             raise
         rows = []
         for metric in metrics:
@@ -229,6 +229,8 @@ def fetch_insights(api, object_id, metrics, period, since=None, until=None):
                 rows.extend(api.get(f"{object_id}/insights", single).get("data", []))
             except MetaAPIError:
                 continue
+        if not rows:
+            raise exc
         payload = {"data": rows}
     return parse_insights(payload)
 

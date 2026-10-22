@@ -109,6 +109,20 @@ class InsightParsingTests(unittest.TestCase):
         self.assertEqual(parsed["post_media_view"]["2026-10-05"], 100)
         self.assertNotIn("post_clicks", parsed)
 
+    def test_fetch_insights_falls_back_on_other_errors(self):
+        def handler(path, params):
+            if "," in params["metric"]:
+                raise fetch_meta.MetaAPIError("combined failed", code=190)
+            if params["metric"] == "post_media_view":
+                return insights_response("post_media_view", 100)
+            raise fetch_meta.MetaAPIError("invalid metric", code=100)
+
+        parsed = fetch_meta.fetch_insights(
+            FakeAPI(handler), "post-1", ("post_media_view", "post_clicks"), "lifetime"
+        )
+        self.assertEqual(parsed["post_media_view"]["2026-10-05"], 100)
+        self.assertNotIn("post_clicks", parsed)
+
 
 class PostMappingTests(unittest.TestCase):
     def test_post_type(self):
