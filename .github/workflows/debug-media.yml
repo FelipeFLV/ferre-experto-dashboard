@@ -35,13 +35,17 @@ jobs:
 
           show("me", api.get("me", {"fields": "id,name"}))
           show("page", api.get(page_id, {"fields": "id,name"}))
-          show("page_media_view_by_post", api.get(f"{page_id}/insights", {
-              "metric": "page_media_view",
-              "period": "day",
-              "since": "2026-10-01",
-              "until": "2026-10-31",
-              "breakdown": "post_id",
-          }))
+          try:
+              page_breakdown = api.get(f"{page_id}/insights", {
+                  "metric": "page_media_view",
+                  "period": "day",
+                  "since": "2026-10-01",
+                  "until": "2026-10-31",
+                  "breakdown": "post_id",
+              })
+          except fetch_meta.MetaAPIError as exc:
+              page_breakdown = {"error": str(exc)}
+          show("page_media_view_by_post", page_breakdown)
 
           posts = fetch_meta.get_all(api, f"{page_id}/posts", {
               "fields": "id,created_time,permalink_url,attachments{media_type,target,subattachments}",
