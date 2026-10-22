@@ -121,9 +121,10 @@ def load_post_history(history_dir=None):
         except json.JSONDecodeError as exc:
             raise SystemExit(f"JSON inválido en {path}: {exc}") from None
         day = str(payload.get("date") or path.stem)
+        partial = bool(payload.get("partial"))
         for post_id, metrics in (payload.get("posts") or {}).items():
             history.setdefault(str(post_id), []).append(
-                {"date": day, "metrics": metrics or {}}
+                {"date": day, "partial": partial, "metrics": metrics or {}}
             )
     for snapshots in history.values():
         snapshots.sort(key=lambda item: item["date"])
@@ -241,11 +242,11 @@ def build_payload(archive_dir=None, history_dir=None):
     posts.sort(key=lambda item: item["date"], reverse=True)
 
     page = latest.get("page") or {}
-    available_history = {
-        post_id: post_history[post_id]
-        for post_id in posts_by_id
-        if post_history.get(post_id)
-    }
+    available_history = {}
+    for post_id in posts_by_id:
+        complete = [item for item in post_history.get(post_id, []) if not item["partial"]]
+        if complete:
+            available_history[post_id] = complete
     history_start = min(
         (item["date"] for snapshots in available_history.values() for item in snapshots),
         default=None,

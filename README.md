@@ -120,7 +120,7 @@ set -a; source .env; set +a
 python3 snapshot_posts.py
 ```
 
-El archivo queda en `data/post-history/YYYY-MM-DD.json`. El workflow corre a las 23:55 Perú para capturar el cierre del día. Para calcular un rango futuro se comparan el snapshot del último día del rango y el del día anterior al inicio; las métricas únicas como viewers o alcance no son aditivas y se muestran como `—`. Si el snapshot se ejecuta manualmente a otra hora, el corte queda a esa hora.
+El archivo queda en `data/post-history/YYYY-MM-DD.json`. El workflow corre a las 23:55 Perú para capturar el cierre del día. Para calcular un rango futuro se comparan el snapshot del último día del rango y el del día anterior al inicio; las métricas únicas como viewers o alcance no son aditivas y se muestran como `—`. Un snapshot capturado antes de las 23:00 se marca como parcial y no se usa para calcular rangos.
 
 ## Publicar en GitHub Pages
 

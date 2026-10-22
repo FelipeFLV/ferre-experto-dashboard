@@ -1,5 +1,6 @@
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -71,6 +72,18 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(self.payload["postHistoryStart"], "2026-10-21")
         self.assertEqual([item["date"] for item in history[video_id]], ["2026-10-21", "2026-10-22"])
         self.assertEqual(history[video_id][-1]["metrics"]["views"], 310)
+
+    def test_partial_post_history_is_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "2026-10-22.json"
+            path.write_text(json.dumps({
+                "date": "2026-10-22",
+                "partial": True,
+                "posts": {"657698394862718_1647944423485062": {"views": 319}},
+            }), encoding="utf-8")
+            payload = build.build_payload(FIXTURES, directory)
+        self.assertEqual(payload["postHistory"], {})
+        self.assertIsNone(payload["postHistoryStart"])
 
     def test_audience_is_empty_without_api_demographics(self):
         self.assertEqual(self.payload["audience"], {"ageGender": [], "cities": [], "countries": []})

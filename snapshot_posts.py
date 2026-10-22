@@ -63,6 +63,7 @@ def main(argv=None):
     posts = fetch_meta.fetch_posts(api, args.page_id, first, target)
     payload = {
         "date": target.isoformat(),
+        "partial": target == today and now.hour < 23,
         "fetched_at": datetime.now(fetch_meta.TZ).isoformat(timespec="seconds"),
         "posts": {post["id"]: post["metrics"] for post in posts},
     }
