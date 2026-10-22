@@ -13,7 +13,7 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 - `serve.py`: servidor local para previsualizar `dist/`.
 - `fetch_meta.py`: descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`.
 - `meta_page_token.py`: asistente local para obtener un Page Access Token de larga duración sin Business Portfolio.
-- `tests/`: pruebas de ingestión, totales y reglas de negocio.
+- `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/` para no depender de métricas que cambian.
 
 ## Requisitos
 
@@ -37,7 +37,7 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 ## Actualizar datos
 
 1. Ejecuta el workflow **Fetch Meta insights** desde GitHub Actions. Si dejas el mes vacío, descarga el mes anterior.
-2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea y el push reconstruye y publica el dashboard.
+2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea y, al terminar, el workflow de Pages reconstruye y publica el dashboard.
 3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
 4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
 5. En local: `python3 build.py` y `python3 serve.py`.
@@ -112,7 +112,7 @@ El dashboard consume directamente esos archivos. El workflow corre automáticame
 
 1. Crea un repositorio **público** y sube el contenido de esta carpeta (`fanpage-dashboard/`) como raíz del repositorio.
 2. En GitHub, entra a **Settings → Pages → Build and deployment** y selecciona **Source: GitHub Actions**.
-3. Empuja a `main`. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega.
+3. Empuja a `main` o ejecuta **Fetch Meta insights**. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega; también se dispara al completar el fetch mensual.
 4. La URL queda como `https://<usuario>.github.io/<repositorio>/`.
 
 Si el workflow falla con `Resource not accessible by integration`, habilita Pages manualmente en **Settings → Pages → Build and deployment → Source: GitHub Actions** y vuelve a ejecutar el workflow.
