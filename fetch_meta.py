@@ -361,7 +361,12 @@ def fetch_post_insights(api, post):
             insights = fetch_insights(api, object_id, POST_METRICS, "lifetime")
         except MetaAPIError as exc:
             last_error = exc
+            print(f"DEBUG {post.get('id')} {object_id}: {exc}", file=sys.stderr)
             continue
+        print(
+            f"DEBUG {post.get('id')} {object_id}: keys={sorted(insights)} data={has_insight_data(insights)}",
+            file=sys.stderr,
+        )
         if has_insight_data(insights):
             return insights
     if last_error and not post_media_ids(post):
