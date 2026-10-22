@@ -195,8 +195,8 @@ def parse_insights(payload):
         points = {}
         for point in item.get("values", []):
             end_time = point.get("end_time")
-            if end_time:
-                points[end_time[:10]] = point.get("value")
+            key = end_time[:10] if end_time else "lifetime"
+            points[key] = point.get("value")
         result[name] = points
     return result
 
@@ -361,12 +361,7 @@ def fetch_post_insights(api, post):
             insights = fetch_insights(api, object_id, POST_METRICS, "lifetime")
         except MetaAPIError as exc:
             last_error = exc
-            print(f"DEBUG {post.get('id')} {object_id}: {exc}", file=sys.stderr)
             continue
-        print(
-            f"DEBUG {post.get('id')} {object_id}: keys={sorted(insights)} data={has_insight_data(insights)}",
-            file=sys.stderr,
-        )
         if has_insight_data(insights):
             return insights
     if last_error and not post_media_ids(post):

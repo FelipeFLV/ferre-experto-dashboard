@@ -93,6 +93,15 @@ class InsightParsingTests(unittest.TestCase):
         self.assertIsNone(fetch_meta.latest_value({"2026-10-01": None}))
         self.assertEqual(fetch_meta.latest_value({"2026-10-01": 5, "2026-10-02": 7}), 7)
 
+    def test_parse_insights_accepts_lifetime_values_without_end_time(self):
+        payload = {
+            "data": [
+                {"name": "post_media_view", "values": [{"value": 1490}]},
+            ]
+        }
+        parsed = fetch_meta.parse_insights(payload)
+        self.assertEqual(fetch_meta.latest_value(parsed["post_media_view"]), 1490)
+
     def test_fetch_insights_falls_back_to_individual_metrics(self):
         def handler(path, params):
             metric = params["metric"]
@@ -262,7 +271,12 @@ class PostMappingTests(unittest.TestCase):
             if not path.startswith(f"{media_id}/insights"):
                 return insights_response("post_media_view", None)
             metrics = params["metric"].split(",")
-            return {"data": [insights_response(metric, values[metric])["data"][0] for metric in metrics]}
+            return {
+                "data": [
+                    {"name": metric, "values": [{"value": values[metric]}]}
+                    for metric in metrics
+                ]
+            }
 
         raw = {
             "id": "657698394862718_1705230774940185",
