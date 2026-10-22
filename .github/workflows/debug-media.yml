@@ -1,6 +1,7 @@
 name: Debug media insights
 
 on:
+  push:
   workflow_dispatch:
 
 permissions:
