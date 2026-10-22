@@ -6,11 +6,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build
 
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "archive"
+
 
 class BuildTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.payload = build.build_payload()
+        cls.payload = build.build_payload(FIXTURES)
         cls.posts = cls.payload["posts"]
         cls.months = {row["month"]: row for row in cls.payload["results"]["monthly"]}
 
@@ -57,10 +59,10 @@ class BuildTests(unittest.TestCase):
 
         video = next(post for post in self.posts if post["date"] == "2026-10-21")
         self.assertTrue(video["isVideo"])
-        self.assertEqual(video["metrics"]["views"], 308)
+        self.assertEqual(video["metrics"]["views"], 310)
         self.assertEqual(video["metrics"]["interactions"], 238)
         self.assertIsNone(video["metrics"]["reach"])
-        self.assertEqual(video["engagementRate"], 77.3)
+        self.assertEqual(video["engagementRate"], 76.8)
 
     def test_audience_is_empty_without_api_demographics(self):
         self.assertEqual(self.payload["audience"], {"ageGender": [], "cities": [], "countries": []})

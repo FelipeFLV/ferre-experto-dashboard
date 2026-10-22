@@ -87,10 +87,11 @@ def month_meta(month):
     }
 
 
-def load_archives():
-    files = sorted(ARCHIVE.glob("*.json"))
+def load_archives(archive_dir=None):
+    archive_dir = Path(archive_dir or ARCHIVE)
+    files = sorted(archive_dir.glob("*.json"))
     if not files:
-        raise SystemExit(f"No hay archivos de Meta en {ARCHIVE}")
+        raise SystemExit(f"No hay archivos de Meta en {archive_dir}")
     archives = []
     for path in files:
         try:
@@ -164,8 +165,8 @@ def build_audience(archives):
     return target
 
 
-def build_payload():
-    archives = load_archives()
+def build_payload(archive_dir=None):
+    archives = load_archives(archive_dir)
     latest = archives[-1]
     cutoff = archive_cutoff(latest)
 
