@@ -128,6 +128,16 @@ class BuildTests(unittest.TestCase):
             audience = build.read_audience_csv(path)
         self.assertEqual(audience["ageGender"], [{"age": "25-34", "men": 45.5, "women": 54.5}])
 
+    def test_image_for_finds_jpg_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original = build.ASSETS
+            build.ASSETS = Path(directory)
+            try:
+                (Path(directory) / "2026-07-06.jpg").write_bytes(b"jpg")
+                self.assertEqual(build.image_for("2026-07-06", ".jpg"), "assets/posts/2026-07-06.jpg")
+            finally:
+                build.ASSETS = original
+
     def test_zero_reach_falls_back_to_views(self):
         self.assertIsNone(build.engagement_rate(10, 0, None))
         self.assertIsNone(build.engagement_rate(10, None, None))

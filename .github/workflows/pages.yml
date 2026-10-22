@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   workflow_run:
-    workflows: ["Fetch Meta insights", "Snapshot post metrics"]
+    workflows: ["Fetch Meta insights", "Snapshot post metrics", "Backfill post images"]
     types: [completed]
   workflow_dispatch:
 

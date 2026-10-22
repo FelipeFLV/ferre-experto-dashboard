@@ -15,6 +15,7 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 - `serve.py`: servidor local para previsualizar `dist/`.
 - `fetch_meta.py`: descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`.
 - `snapshot_posts.py`: guarda `data/post-history/YYYY-MM-DD.json` con las métricas `lifetime` de cada publicación.
+- `fetch_post_images.py`: descarga desde Graph API la portada (`full_picture`) de las publicaciones que no tienen imagen local.
 - `meta_page_token.py`: asistente local para obtener un Page Access Token de larga duración sin Business Portfolio.
 - `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/`, `tests/fixtures/post-history/` y `tests/fixtures/audience.csv` para no depender de métricas que cambian.
 
@@ -43,8 +44,9 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea si cambiaron las métricas y, al terminar, Pages reconstruye y publica el dashboard. Si solo cambia `fetched_at`, no guarda, no commitea y no redeploya. El dashboard muestra la fecha de actualización del archive.
 3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
 4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
-5. El workflow **Snapshot post metrics** corre a diario a las **23:55 Perú (04:55 UTC)** y guarda las métricas acumuladas de las publicaciones. Si no hay cambios reales, no commitea ni redeploya.
-6. En local: `python3 build.py` y `python3 serve.py`.
+5. El workflow **Snapshot post metrics** corre a diario a las **23:55 Perú (04:55 UTC)**, guarda las métricas acumuladas y descarga las portadas faltantes. Si no hay cambios reales, no commitea ni redeploya.
+6. Usa **Backfill post images** para recuperar capturas históricas o volver a descargarlas con `force`.
+7. En local: `python3 build.py` y `python3 serve.py`.
 
 ## Automatización con Meta API
 
@@ -126,6 +128,18 @@ El archivo queda en `data/post-history/YYYY-MM-DD.json`. El workflow corre a las
 ### Audiencia
 
 Meta dejó de exponer edad, género, ciudad y país vía API. Para actualizar esos gráficos, descarga el export de audiencia desde Meta Business Suite y reemplaza `data/audience.csv`; el build lo usa automáticamente cuando la API no devuelve esos desgloses. El parser acepta UTF-8 o UTF-16 y espera las secciones `Age & gender`, `Top cities` y `Top countries`.
+
+### Capturas de publicaciones
+
+`fetch_post_images.py` pide `full_picture` a Graph API y guarda la portada en `assets/posts/YYYY-MM-DD.jpg` o `.png`. Solo descarga las publicaciones sin imagen local, salvo que se use `--force`; en videos usa el thumbnail. Los workflows **Fetch Meta insights** y **Snapshot post metrics** ejecutan la descarga automáticamente. Para un backfill manual:
+
+```bash
+set -a; source .env; set +a
+python3 fetch_post_images.py
+python3 fetch_post_images.py --force
+```
+
+Si Meta no devuelve imagen para una publicación, se conserva el placeholder.
 
 ## Publicar en GitHub Pages
 

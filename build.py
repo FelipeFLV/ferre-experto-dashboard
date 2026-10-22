@@ -167,11 +167,10 @@ def has_image_optimizer():
 def image_for(day, extension):
     if not day:
         return None
-    if (ASSETS / f"{day}.png").exists():
-        return f"assets/posts/{day}{extension}"
-    candidate = ASSETS / f"{day}{extension}"
-    if candidate.exists():
-        return f"assets/posts/{candidate.name}"
+    for suffix in (".png", ".jpg", ".jpeg"):
+        candidate = ASSETS / f"{day}{suffix}"
+        if candidate.exists():
+            return f"assets/posts/{day}{extension}" if extension == ".jpg" else f"assets/posts/{candidate.name}"
     return None
 
 
@@ -349,7 +348,9 @@ def optimize_images():
     except ImportError:
         Image = None
 
-    for source in sorted(ASSETS.glob("*.png")):
+    for source in sorted(ASSETS.iterdir()):
+        if not source.is_file() or source.suffix.lower() not in (".png", ".jpg", ".jpeg"):
+            continue
         destination = target / f"{source.stem}.jpg"
         if sips:
             result = subprocess.run(
