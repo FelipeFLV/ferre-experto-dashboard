@@ -1,0 +1,87 @@
+name: Debug media insights
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Debug media insights
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          import fetch_meta
+
+          api = fetch_meta.GraphAPI(os.environ["META_PAGE_TOKEN"])
+          page_id = os.environ["META_PAGE_ID"]
+
+          def show(title, payload):
+              print(f"\n=== {title} ===")
+              print(json.dumps(payload, ensure_ascii=False, indent=2)[:4000])
+
+          show("me", api.get("me", {"fields": "id,name"}))
+          show("page", api.get(page_id, {"fields": "id,name"}))
+          show("page_media_view_by_post", api.get(f"{page_id}/insights", {
+              "metric": "page_media_view",
+              "period": "day",
+              "since": "2026-10-01",
+              "until": "2026-10-31",
+              "breakdown": "post_id",
+          }))
+
+          posts = fetch_meta.get_all(api, f"{page_id}/posts", {
+              "fields": "id,created_time,permalink_url,attachments{media_type,target,subattachments}",
+              "since": "2026-10-01",
+              "until": "2026-11-01",
+              "limit": 100,
+          })
+          for post in posts:
+              show(f"post {post.get('id')}", post)
+              attachments = (post.get("attachments") or {}).get("data") or []
+              targets = []
+              for attachment in attachments:
+                  target = attachment.get("target") or {}
+                  if target.get("id"):
+                      targets.append(target["id"])
+                  for sub in (attachment.get("subattachments") or {}).get("data") or []:
+                      sub_target = sub.get("target") or {}
+                      if sub_target.get("id"):
+                          targets.append(sub_target["id"])
+              for media_id in dict.fromkeys(targets):
+                  show(f"media {media_id}", api.get(media_id, {
+                      "fields": "id,created_time,media_type,permalink_url",
+                  }))
+                  for metric in (
+                      "post_media_view",
+                      "post_total_media_view_unique",
+                      "photo_view",
+                      "photo_impressions",
+                      "photo_impressions_unique",
+                      "post_impressions",
+                      "post_impressions_unique",
+                      "video_views",
+                      "post_video_views",
+                      "post_video_views_unique",
+                  ):
+                      try:
+                          payload = api.get(f"{media_id}/insights", {
+                              "metric": metric,
+                              "period": "lifetime",
+                          })
+                      except fetch_meta.MetaAPIError as exc:
+                          payload = {"error": str(exc)}
+                      show(f"media {media_id} {metric}", payload)
+          PY
