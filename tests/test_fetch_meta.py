@@ -93,6 +93,15 @@ class InsightParsingTests(unittest.TestCase):
         self.assertIsNone(fetch_meta.latest_value({"2026-10-01": None}))
         self.assertEqual(fetch_meta.latest_value({"2026-10-01": 5, "2026-10-02": 7}), 7)
 
+    def test_parse_insights_accepts_lifetime_values_without_end_time(self):
+        payload = {
+            "data": [
+                {"name": "post_media_view", "values": [{"value": 1490}]},
+            ]
+        }
+        parsed = fetch_meta.parse_insights(payload)
+        self.assertEqual(fetch_meta.latest_value(parsed["post_media_view"]), 1490)
+
     def test_fetch_insights_falls_back_to_individual_metrics(self):
         def handler(path, params):
             metric = params["metric"]
@@ -105,6 +114,20 @@ class InsightParsingTests(unittest.TestCase):
         api = FakeAPI(handler)
         parsed = fetch_meta.fetch_insights(
             api, "post-1", ("post_media_view", "post_clicks"), "lifetime"
+        )
+        self.assertEqual(parsed["post_media_view"]["2026-10-05"], 100)
+        self.assertNotIn("post_clicks", parsed)
+
+    def test_fetch_insights_falls_back_on_other_errors(self):
+        def handler(path, params):
+            if "," in params["metric"]:
+                raise fetch_meta.MetaAPIError("combined failed", code=190)
+            if params["metric"] == "post_media_view":
+                return insights_response("post_media_view", 100)
+            raise fetch_meta.MetaAPIError("invalid metric", code=100)
+
+        parsed = fetch_meta.fetch_insights(
+            FakeAPI(handler), "post-1", ("post_media_view", "post_clicks"), "lifetime"
         )
         self.assertEqual(parsed["post_media_view"]["2026-10-05"], 100)
         self.assertNotIn("post_clicks", parsed)
@@ -156,6 +179,10 @@ class PostMappingTests(unittest.TestCase):
                 "post_clicks_by_type",
                 {"link clicks": 20, "other clicks": 5, "photo clicks": 5},
             ),
+            "post_activity_by_action_type": insights_response(
+                "post_activity_by_action_type",
+                {"like": 12, "comment": 7, "share": 3},
+            ),
         }
 
         def handler(path, params):
@@ -187,6 +214,144 @@ class PostMappingTests(unittest.TestCase):
         self.assertEqual(post["metrics"]["linkClicks"], 20)
         self.assertEqual(post["metrics"]["otherClicks"], 5)
         self.assertEqual(post["metrics"]["photoClicks"], 5)
+
+    def test_build_post_tries_legacy_permalink_id(self):
+        legacy_id = "1712999594163303_1705230774940185"
+        values = {
+            "post_media_view": 1472,
+            "post_total_media_view_unique": 763,
+            "post_reactions_by_type_total": {"like": 26, "love": 1},
+            "post_clicks": 20,
+            "post_clicks_by_type": {"other clicks": 10, "photo view": 4, "link clicks": 6},
+            "post_activity_by_action_type": {"share": 8, "like": 27, "comment": 1},
+        }
+        seen = []
+
+        def handler(path, params):
+            seen.append(path)
+            if path.startswith("657698394862718_"):
+                return {"data": []}
+            metrics = params["metric"].split(",")
+            return {"data": [insights_response(metric, values[metric])["data"][0] for metric in metrics]}
+
+        raw = {
+            "id": "657698394862718_1705230774940185",
+            "created_time": "2026-10-14T14:24:00+0000",
+            "permalink_url": "https://www.facebook.com/1712999594163303/posts/1705230774940185",
+            "attachments": {"data": [{"media_type": "photo"}]},
+        }
+        post = fetch_meta.build_post(FakeAPI(handler), raw)
+        self.assertEqual(seen[0], "657698394862718_1705230774940185/insights")
+        self.assertEqual(seen[1], f"{legacy_id}/insights")
+        self.assertEqual(post["metrics"]["views"], 1472)
+        self.assertEqual(post["metrics"]["viewers"], 763)
+        self.assertEqual(post["metrics"]["reactions"], 27)
+        self.assertEqual(post["metrics"]["comments"], 1)
+        self.assertEqual(post["metrics"]["shares"], 8)
+        self.assertEqual(post["metrics"]["interactions"], 36)
+        self.assertEqual(post["metrics"]["totalClicks"], 20)
+        self.assertEqual(post["metrics"]["linkClicks"], 6)
+        self.assertEqual(post["metrics"]["otherClicks"], 10)
+        self.assertEqual(post["metrics"]["photoClicks"], 4)
+
+    def test_build_post_uses_media_target_for_photo_insights(self):
+        media_id = "1705227668273829"
+        values = {
+            "post_media_view": 1490,
+            "post_total_media_view_unique": 763,
+            "post_reactions_by_type_total": {"like": 26, "love": 1},
+            "post_clicks": 20,
+            "post_clicks_by_type": {"other clicks": 10, "photo view": 4, "link clicks": 6},
+            "post_activity_by_action_type": {"share": 8, "like": 27, "comment": 1},
+        }
+        seen = []
+
+        def handler(path, params):
+            seen.append(path)
+            if not path.startswith(f"{media_id}/insights"):
+                return insights_response("post_media_view", None)
+            metrics = params["metric"].split(",")
+            return {
+                "data": [
+                    {"name": metric, "values": [{"value": values[metric]}]}
+                    for metric in metrics
+                ]
+            }
+
+        raw = {
+            "id": "657698394862718_1705230774940185",
+            "created_time": "2026-10-14T14:24:00+0000",
+            "permalink_url": "https://www.facebook.com/1712999594163303/posts/1705230774940185",
+            "attachments": {"data": [{"media_type": "photo", "target": {"id": media_id}}]},
+        }
+        post = fetch_meta.build_post(FakeAPI(handler), raw)
+        self.assertIn(f"{media_id}/insights", seen)
+        self.assertEqual(post["metrics"]["views"], 1490)
+        self.assertEqual(post["metrics"]["viewers"], 763)
+        self.assertEqual(post["metrics"]["reactions"], 27)
+        self.assertEqual(post["metrics"]["comments"], 1)
+        self.assertEqual(post["metrics"]["shares"], 8)
+        self.assertEqual(post["metrics"]["interactions"], 36)
+        self.assertEqual(post["metrics"]["totalClicks"], 20)
+
+    def test_build_post_maps_video_insights(self):
+        media_id = "1647944423485062"
+
+        def handler(path, params):
+            if path == f"{media_id}/video_insights":
+                return {
+                    "data": [
+                        {"name": "total_video_views", "values": [{"value": 307}]},
+                        {"name": "total_video_complete_views", "values": [{"value": 21}]},
+                        {
+                            "name": "total_video_view_total_time",
+                            "values": [{"value": 148608533}],
+                        },
+                        {
+                            "name": "total_video_avg_time_watched",
+                            "values": [{"value": 379103}],
+                        },
+                    ]
+                }
+            return {"data": []}
+
+        raw = {
+            "id": "657698394862718_1647944423485062",
+            "created_time": "2026-10-22T00:01:26+0000",
+            "shares": {"count": 1},
+            "comments": {"summary": {"total_count": 105}},
+            "reactions": {"summary": {"total_count": 55}},
+            "attachments": {"data": [{"media_type": "video", "target": {"id": media_id}}]},
+        }
+        post = fetch_meta.build_post(FakeAPI(handler), raw)
+        self.assertTrue(post["isVideo"])
+        self.assertEqual(post["metrics"]["views"], 307)
+        self.assertIsNone(post["metrics"]["viewers"])
+        self.assertEqual(post["metrics"]["interactions"], 161)
+        self.assertEqual(post["metrics"]["secondsViewed"], 148609)
+        self.assertEqual(post["metrics"]["averageSecondsViewed"], 379)
+        self.assertEqual(post["metrics"]["threeSecondViews"], 307)
+
+    def test_build_post_uses_activity_for_missing_comments_and_shares(self):
+        def handler(path, params):
+            return insights_response(
+                "post_activity_by_action_type",
+                {"like": 27, "comment": 1, "share": 8},
+            )
+
+        raw = {
+            "id": "123_456",
+            "created_time": "2026-10-14T14:24:00+0000",
+            "shares": {"count": 0},
+            "comments": {"summary": {"total_count": 0}},
+            "reactions": {"summary": {"total_count": 11}},
+            "attachments": {"data": [{"media_type": "photo"}]},
+        }
+        post = fetch_meta.build_post(FakeAPI(handler), raw)
+        self.assertEqual(post["metrics"]["reactions"], 27)
+        self.assertEqual(post["metrics"]["comments"], 1)
+        self.assertEqual(post["metrics"]["shares"], 8)
+        self.assertEqual(post["metrics"]["interactions"], 36)
 
 
 class AudienceTests(unittest.TestCase):

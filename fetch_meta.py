@@ -27,8 +27,15 @@ POST_METRICS = (
     "post_reactions_by_type_total",
     "post_clicks",
     "post_clicks_by_type",
+    "post_activity_by_action_type",
 )
 AUDIENCE_METRICS = ("page_follows_city", "page_follows_country")
+VIDEO_METRICS = (
+    "total_video_views",
+    "total_video_complete_views",
+    "total_video_view_total_time",
+    "total_video_avg_time_watched",
+)
 
 
 class MetaAPIError(Exception):
@@ -144,6 +151,11 @@ def to_int(value):
     return int(round(number)) if number is not None else None
 
 
+def to_seconds(value):
+    number = to_num(value)
+    return int(round(number / 1000)) if number is not None else None
+
+
 def numeric(value):
     if isinstance(value, dict):
         numbers = [numeric(item) for item in value.values()]
@@ -183,8 +195,8 @@ def parse_insights(payload):
         points = {}
         for point in item.get("values", []):
             end_time = point.get("end_time")
-            if end_time:
-                points[end_time[:10]] = point.get("value")
+            key = end_time[:10] if end_time else "lifetime"
+            points[key] = point.get("value")
         result[name] = points
     return result
 
@@ -207,7 +219,7 @@ def fetch_insights(api, object_id, metrics, period, since=None, until=None):
     try:
         payload = api.get(f"{object_id}/insights", params)
     except MetaAPIError as exc:
-        if exc.code != 100 or len(metrics) == 1:
+        if len(metrics) == 1:
             raise
         rows = []
         for metric in metrics:
@@ -217,6 +229,8 @@ def fetch_insights(api, object_id, metrics, period, since=None, until=None):
                 rows.extend(api.get(f"{object_id}/insights", single).get("data", []))
             except MetaAPIError:
                 continue
+        if not rows:
+            raise exc
         payload = {"data": rows}
     return parse_insights(payload)
 
@@ -304,16 +318,119 @@ def click_total(clicks, needle):
     return None
 
 
+def post_insight_ids(post):
+    raw_id = str(post.get("id") or "")
+    if not raw_id:
+        return []
+    suffix = raw_id.split("_", 1)[1] if "_" in raw_id else raw_id
+    candidates = [raw_id]
+    match = re.search(r"facebook\.com/(\d+)/posts/(\d+)", str(post.get("permalink_url") or ""))
+    if match and match.group(2) == suffix:
+        candidates.append(f"{match.group(1)}_{match.group(2)}")
+    from_id = str((post.get("from") or {}).get("id") or "")
+    if from_id:
+        candidates.append(f"{from_id}_{suffix}")
+    result = []
+    for item in candidates:
+        if item and item not in result:
+            result.append(item)
+    return result
+
+
+def post_media_ids(post):
+    ids = []
+    for attachment in (post.get("attachments") or {}).get("data") or []:
+        target = attachment.get("target") or {}
+        if target.get("id"):
+            ids.append(str(target["id"]))
+        for sub in (attachment.get("subattachments") or {}).get("data") or []:
+            target = sub.get("target") or {}
+            if target.get("id"):
+                ids.append(str(target["id"]))
+    return list(dict.fromkeys(ids))
+
+
+def has_insight_data(insights):
+    return any(latest_value(points) is not None for points in insights.values())
+
+
+def fetch_post_insights(api, post):
+    last_error = None
+    for object_id in post_insight_ids(post) + post_media_ids(post):
+        try:
+            insights = fetch_insights(api, object_id, POST_METRICS, "lifetime")
+        except MetaAPIError as exc:
+            last_error = exc
+            continue
+        if has_insight_data(insights):
+            return insights
+    if last_error and not post_media_ids(post):
+        print(
+            f"Advertencia: no se pudieron leer métricas del post {post.get('id')}: {last_error}",
+            file=sys.stderr,
+        )
+    return {}
+
+
+def parse_video_insights(payload):
+    result = {}
+    for item in payload.get("data", []):
+        values = item.get("values") or []
+        if values:
+            result[item.get("name")] = values[-1].get("value")
+    return result
+
+
+def fetch_video_insights(api, post):
+    for media_id in post_media_ids(post):
+        params = {"metric": ",".join(VIDEO_METRICS)}
+        try:
+            payload = api.get(f"{media_id}/video_insights", params)
+        except MetaAPIError as exc:
+            if exc.code != 100:
+                continue
+            rows = []
+            for metric in VIDEO_METRICS:
+                try:
+                    rows.extend(api.get(f"{media_id}/video_insights", {"metric": metric}).get("data", []))
+                except MetaAPIError:
+                    continue
+            payload = {"data": rows}
+        insights = parse_video_insights(payload)
+        if insights:
+            return insights
+    return {}
+
+
 def build_post(api, post):
-    insights = fetch_insights(api, post["id"], POST_METRICS, "lifetime")
+    insights = fetch_post_insights(api, post)
+    label, is_video = post_type(post)
+    video = fetch_video_insights(api, post) if is_video else {}
+    activity = latest_value(insights.get("post_activity_by_action_type", {}))
+    if not isinstance(activity, dict):
+        activity = {}
     reactions = reaction_total(latest_value(insights.get("post_reactions_by_type_total", {})))
+    if reactions is None:
+        reactions = to_int(activity.get("like"))
+    if reactions is None:
+        reactions = to_int(((post.get("reactions") or {}).get("summary") or {}).get("total_count"))
     comments = to_int(((post.get("comments") or {}).get("summary") or {}).get("total_count"))
+    if comments in (None, 0) and activity.get("comment") is not None:
+        comments = to_int(activity.get("comment"))
     shares = to_int((post.get("shares") or {}).get("count"))
+    if shares in (None, 0) and activity.get("share") is not None:
+        shares = to_int(activity.get("share"))
     interactions = None
     if any(item is not None for item in (reactions, comments, shares)):
         interactions = (reactions or 0) + (comments or 0) + (shares or 0)
     clicks = latest_value(insights.get("post_clicks_by_type", {}))
-    label, is_video = post_type(post)
+    views = numeric(latest_value(insights.get("post_media_view", {})))
+    viewers = numeric(latest_value(insights.get("post_total_media_view_unique", {})))
+    if is_video:
+        video_views = to_int(video.get("total_video_views"))
+        if video_views is not None:
+            views = video_views
+        viewers = None
     return {
         "id": str(post["id"]),
         "date": parse_date(post.get("created_time")),
@@ -323,8 +440,8 @@ def build_post(api, post):
         "image": None,
         "isVideo": is_video,
         "metrics": {
-            "views": numeric(latest_value(insights.get("post_media_view", {}))),
-            "viewers": numeric(latest_value(insights.get("post_total_media_view_unique", {}))),
+            "views": views,
+            "viewers": viewers,
             "reach": None,
             "interactions": interactions,
             "reactions": reactions,
@@ -334,9 +451,9 @@ def build_post(api, post):
             "linkClicks": click_total(clicks, "link"),
             "otherClicks": click_total(clicks, "other"),
             "photoClicks": click_total(clicks, "photo"),
-            "secondsViewed": None,
-            "averageSecondsViewed": None,
-            "threeSecondViews": None,
+            "secondsViewed": to_seconds(video.get("total_video_view_total_time")),
+            "averageSecondsViewed": to_seconds(video.get("total_video_avg_time_watched")),
+            "threeSecondViews": to_int(video.get("total_video_views")),
             "oneMinuteViews": None,
             "threeSecondViewers": None,
             "oneMinuteViewers": None,
@@ -347,7 +464,7 @@ def build_post(api, post):
 
 def fetch_posts(api, page_id, first, last):
     params = {
-        "fields": "id,created_time,message,permalink_url,shares,comments.summary(true).limit(0),attachments{media_type,target,subattachments}",
+        "fields": "id,created_time,message,permalink_url,from{id,name},shares,comments.summary(true).limit(0),reactions.summary(true).limit(0),attachments{media_type,target,subattachments}",
         "since": first.isoformat(),
         "until": (last + timedelta(days=1)).isoformat(),
         "limit": 100,
