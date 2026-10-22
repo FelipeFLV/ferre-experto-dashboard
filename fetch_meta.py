@@ -27,6 +27,7 @@ POST_METRICS = (
     "post_reactions_by_type_total",
     "post_clicks",
     "post_clicks_by_type",
+    "post_activity_by_action_type",
 )
 AUDIENCE_METRICS = ("page_follows_city", "page_follows_country")
 
@@ -304,11 +305,59 @@ def click_total(clicks, needle):
     return None
 
 
+def post_insight_ids(post):
+    raw_id = str(post.get("id") or "")
+    if not raw_id:
+        return []
+    suffix = raw_id.split("_", 1)[1] if "_" in raw_id else raw_id
+    candidates = [raw_id]
+    match = re.search(r"facebook\.com/(\d+)/posts/(\d+)", str(post.get("permalink_url") or ""))
+    if match and match.group(2) == suffix:
+        candidates.append(f"{match.group(1)}_{match.group(2)}")
+    from_id = str((post.get("from") or {}).get("id") or "")
+    if from_id:
+        candidates.append(f"{from_id}_{suffix}")
+    result = []
+    for item in candidates:
+        if item and item not in result:
+            result.append(item)
+    return result
+
+
+def fetch_post_insights(api, post):
+    last_error = None
+    for object_id in post_insight_ids(post):
+        try:
+            insights = fetch_insights(api, object_id, POST_METRICS, "lifetime")
+        except MetaAPIError as exc:
+            last_error = exc
+            continue
+        if any(insights.get(metric) for metric in POST_METRICS):
+            return insights
+    if last_error:
+        print(
+            f"Advertencia: no se pudieron leer métricas del post {post.get('id')}: {last_error}",
+            file=sys.stderr,
+        )
+    return {}
+
+
 def build_post(api, post):
-    insights = fetch_insights(api, post["id"], POST_METRICS, "lifetime")
+    insights = fetch_post_insights(api, post)
+    activity = latest_value(insights.get("post_activity_by_action_type", {}))
+    if not isinstance(activity, dict):
+        activity = {}
     reactions = reaction_total(latest_value(insights.get("post_reactions_by_type_total", {})))
+    if reactions is None:
+        reactions = to_int(activity.get("like"))
+    if reactions is None:
+        reactions = to_int(((post.get("reactions") or {}).get("summary") or {}).get("total_count"))
     comments = to_int(((post.get("comments") or {}).get("summary") or {}).get("total_count"))
+    if comments in (None, 0) and activity.get("comment") is not None:
+        comments = to_int(activity.get("comment"))
     shares = to_int((post.get("shares") or {}).get("count"))
+    if shares in (None, 0) and activity.get("share") is not None:
+        shares = to_int(activity.get("share"))
     interactions = None
     if any(item is not None for item in (reactions, comments, shares)):
         interactions = (reactions or 0) + (comments or 0) + (shares or 0)
@@ -347,7 +396,7 @@ def build_post(api, post):
 
 def fetch_posts(api, page_id, first, last):
     params = {
-        "fields": "id,created_time,message,permalink_url,shares,comments.summary(true).limit(0),attachments{media_type,target,subattachments}",
+        "fields": "id,created_time,message,permalink_url,from{id,name},shares,comments.summary(true).limit(0),reactions.summary(true).limit(0),attachments{media_type,target,subattachments}",
         "since": first.isoformat(),
         "until": (last + timedelta(days=1)).isoformat(),
         "limit": 100,
