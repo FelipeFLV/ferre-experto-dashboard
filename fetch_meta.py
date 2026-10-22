@@ -186,6 +186,11 @@ def month_bounds(month=None, today=None):
     return first, next_month - timedelta(days=1)
 
 
+def current_month_bounds(today=None):
+    today = today or datetime.now(TZ).date()
+    return month_bounds(today.replace(day=1).strftime("%Y-%m"))
+
+
 def parse_insights(payload):
     result = {}
     for item in payload.get("data", []):
@@ -597,6 +602,7 @@ def main(argv=None):
         description="Descarga las métricas mensuales del fanpage desde Meta Graph API."
     )
     parser.add_argument("--month", help="Mes a descargar en formato YYYY-MM. Por defecto, el mes anterior.")
+    parser.add_argument("--current", action="store_true", help="Descarga el mes en curso hasta hoy.")
     parser.add_argument("--page-id", default=os.environ.get("META_PAGE_ID"), help="ID de la página. También META_PAGE_ID.")
     parser.add_argument("--token", default=os.environ.get("META_PAGE_TOKEN"), help="Token de página. También META_PAGE_TOKEN.")
     parser.add_argument("--output", help="Ruta del JSON. Por defecto data/archive/YYYY-MM.json.")
@@ -609,8 +615,10 @@ def main(argv=None):
         )
     if not args.page_id:
         raise SystemExit("Falta META_PAGE_ID. Usa --page-id o la variable META_PAGE_ID.")
+    if args.current and args.month:
+        parser.error("Usa --month o --current, no ambos.")
 
-    first, last = month_bounds(args.month)
+    first, last = current_month_bounds() if args.current else month_bounds(args.month)
     api = GraphAPI(args.token)
 
     try:

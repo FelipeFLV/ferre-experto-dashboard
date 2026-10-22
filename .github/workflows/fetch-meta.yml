@@ -2,7 +2,7 @@ name: Fetch Meta insights
 
 on:
   schedule:
-    - cron: "0 13 1 * *"
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       month:
@@ -42,11 +42,17 @@ jobs:
           args=()
           if [ -n "$MONTH" ]; then
             args+=(--month "$MONTH")
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Lima date +%d)" != "01" ]; then
+            args+=(--current)
           fi
           if [ "$PROBE" = "true" ]; then
             args+=(--probe)
           fi
           python3 fetch_meta.py "${args[@]}"
+
+          if [ "$PROBE" != "true" ] && [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Lima date +%d)" = "01" ]; then
+            python3 fetch_meta.py --current
+          fi
 
       - name: Fetch post images
         if: ${{ inputs.probe != true }}

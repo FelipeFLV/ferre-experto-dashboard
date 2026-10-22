@@ -55,6 +55,11 @@ class MonthBoundsTests(unittest.TestCase):
         self.assertEqual(first, date(2024, 2, 1))
         self.assertEqual(last, date(2024, 2, 29))
 
+    def test_current_month_bounds(self):
+        first, last = fetch_meta.current_month_bounds(date(2026, 10, 22))
+        self.assertEqual(first, date(2026, 10, 1))
+        self.assertEqual(last, date(2026, 10, 31))
+
 
 class InsightParsingTests(unittest.TestCase):
     def test_parse_insights_and_daily_fill(self):

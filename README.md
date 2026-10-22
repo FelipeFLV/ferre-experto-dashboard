@@ -40,9 +40,9 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 
 ## Actualizar datos
 
-1. Ejecuta el workflow **Fetch Meta insights** desde GitHub Actions. Si dejas el mes vacío, descarga el mes anterior.
-2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea si cambiaron las métricas y, al terminar, Pages reconstruye y publica el dashboard. Si solo cambia `fetched_at`, no guarda, no commitea y no redeploya. El dashboard muestra la fecha de actualización del archive.
-3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
+1. El workflow **Fetch Meta insights** corre a diario a las **08:00 Perú (13:00 UTC)**. Del día 2 en adelante actualiza el mes en curso hasta la fecha; el día 1 cierra el mes anterior y además inicia el mes en curso.
+2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea si cambiaron las métricas y, al terminar, Pages reconstruye y publica el dashboard. Si solo cambia `fetched_at`, no guarda, no commitea ni redeploya. El dashboard muestra la fecha de actualización del archive.
+3. Para backfill o correcciones, ejecuta el workflow manualmente con un mes explícito (`YYYY-MM`). Si lo ejecutas sin mes, descarga el mes anterior.
 4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
 5. El workflow **Snapshot post metrics** corre a diario a las **23:55 Perú (04:55 UTC)**, guarda las métricas acumuladas y descarga las portadas faltantes. Si no hay cambios reales, no commitea ni redeploya.
 6. Usa **Backfill post images** para recuperar capturas históricas o volver a descargarlas con `force`.
@@ -50,7 +50,7 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 
 ## Automatización con Meta API
 
-`fetch_meta.py` descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`. Usa solo la biblioteca estándar.
+`fetch_meta.py` descarga un mes desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`. Usa solo la biblioteca estándar.
 
 ### Credenciales
 
@@ -108,11 +108,17 @@ El modo `--probe` solo informa qué métricas responden `OK` o `ERROR`; no guard
 python3 fetch_meta.py --month 2026-10
 ```
 
-Sin `--month` descarga el mes anterior. El archivo queda en `data/archive/2026-10.json`.
+Sin `--month` descarga el mes anterior. Para actualizar el mes en curso hasta hoy usa `--current`:
+
+```bash
+python3 fetch_meta.py --current
+```
+
+El archivo queda en `data/archive/YYYY-MM.json`.
 
 También puedes ejecutar el workflow manual **Fetch Meta insights** desde GitHub Actions, con los mismos secretos. El JSON se adjunta como artefacto durante 14 días.
 
-El dashboard consume directamente esos archivos. El workflow corre automáticamente el día 1 a las **08:00 Perú (13:00 UTC)**, descarga el mes anterior, commitea el archivo y publica el sitio. También puedes ejecutarlo manualmente para backfill.
+El dashboard consume directamente esos archivos. El workflow corre a diario a las **08:00 Perú (13:00 UTC)**, actualiza el mes en curso y publica el sitio; el día 1 descarga además el mes anterior para cerrarlo. También puedes ejecutarlo manualmente para backfill.
 
 ### Snapshots por publicación
 
@@ -145,7 +151,7 @@ Si Meta no devuelve imagen para una publicación, se conserva el placeholder.
 
 1. Crea un repositorio **público** y sube el contenido de esta carpeta (`fanpage-dashboard/`) como raíz del repositorio.
 2. En GitHub, entra a **Settings → Pages → Build and deployment** y selecciona **Source: GitHub Actions**.
-3. Empuja a `main` o ejecuta **Fetch Meta insights** / **Snapshot post metrics**. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega; también se dispara al completar el fetch mensual o el snapshot diario.
+3. Empuja a `main` o ejecuta **Fetch Meta insights** / **Snapshot post metrics**. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega; también se dispara al completar el fetch de insights o el snapshot diario.
 4. La URL queda como `https://<usuario>.github.io/<repositorio>/`.
 
 Si el workflow falla con `Resource not accessible by integration`, habilita Pages manualmente en **Settings → Pages → Build and deployment → Source: GitHub Actions** y vuelve a ejecutar el workflow.
