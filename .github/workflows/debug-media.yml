@@ -66,9 +66,13 @@ jobs:
                       if sub_target.get("id"):
                           targets.append(sub_target["id"])
               for media_id in dict.fromkeys(targets):
-                  show(f"media {media_id}", api.get(media_id, {
-                      "fields": "id,created_time,media_type,permalink_url",
-                  }))
+                  try:
+                      media = api.get(media_id, {
+                          "fields": "id,created_time,permalink_url",
+                      })
+                  except fetch_meta.MetaAPIError as exc:
+                      media = {"error": str(exc)}
+                  show(f"media {media_id}", media)
                   for metric in (
                       "post_media_view",
                       "post_total_media_view_unique",
