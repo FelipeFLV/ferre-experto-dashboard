@@ -1,0 +1,215 @@
+{
+  "month": "2026-02",
+  "since": "2026-02-01",
+  "until": "2026-02-28",
+  "cutoff": "2026-02-28",
+  "fetched_at": "2026-10-21T23:55:55-05:00",
+  "page": {
+    "id": "657698394862718",
+    "name": "Ferre Experto Pacasmayo",
+    "followers": 2743
+  },
+  "daily": [
+    {
+      "date": "2026-02-01",
+      "views": 0,
+      "viewers": 0,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-02",
+      "views": 7,
+      "viewers": 1,
+      "visits": 2,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-03",
+      "views": 7,
+      "viewers": 2,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-04",
+      "views": 8,
+      "viewers": 2,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-05",
+      "views": 10,
+      "viewers": 1,
+      "visits": 4,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-06",
+      "views": 50,
+      "viewers": 9,
+      "visits": 15,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-07",
+      "views": 10,
+      "viewers": 4,
+      "visits": 2,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-08",
+      "views": 7,
+      "viewers": 4,
+      "visits": 14,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-09",
+      "views": 1,
+      "viewers": 1,
+      "visits": 2,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-10",
+      "views": 12,
+      "viewers": 4,
+      "visits": 14,
+      "follows": 1
+    },
+    {
+      "date": "2026-02-11",
+      "views": 5,
+      "viewers": 3,
+      "visits": 13,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-12",
+      "views": 7,
+      "viewers": 5,
+      "visits": 1,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-13",
+      "views": 0,
+      "viewers": 0,
+      "visits": 2,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-14",
+      "views": 3,
+      "viewers": 1,
+      "visits": 5,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-15",
+      "views": 7,
+      "viewers": 2,
+      "visits": 4,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-16",
+      "views": 5,
+      "viewers": 2,
+      "visits": 1,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-17",
+      "views": 21,
+      "viewers": 2,
+      "visits": 31,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-18",
+      "views": 5,
+      "viewers": 4,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-19",
+      "views": 22,
+      "viewers": 5,
+      "visits": 6,
+      "follows": 2
+    },
+    {
+      "date": "2026-02-20",
+      "views": 1,
+      "viewers": 1,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-21",
+      "views": 64,
+      "viewers": 3,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-22",
+      "views": 4,
+      "viewers": 2,
+      "visits": 1,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-23",
+      "views": 2,
+      "viewers": 2,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-24",
+      "views": 28,
+      "viewers": 4,
+      "visits": 18,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-25",
+      "views": 24,
+      "viewers": 4,
+      "visits": 18,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-26",
+      "views": 11,
+      "viewers": 3,
+      "visits": 8,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-27",
+      "views": 10,
+      "viewers": 3,
+      "visits": 19,
+      "follows": 0
+    },
+    {
+      "date": "2026-02-28",
+      "views": 6,
+      "viewers": 2,
+      "visits": 9,
+      "follows": 0
+    }
+  ],
+  "posts": [],
+  "audience": {
+    "cities": [],
+    "countries": []
+  }
+}
