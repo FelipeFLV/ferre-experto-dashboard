@@ -1,0 +1,229 @@
+{
+  "month": "2026-04",
+  "since": "2026-04-01",
+  "until": "2026-04-30",
+  "cutoff": "2026-04-30",
+  "fetched_at": "2026-10-21T23:56:31-05:00",
+  "page": {
+    "id": "657698394862718",
+    "name": "Ferre Experto Pacasmayo",
+    "followers": 2743
+  },
+  "daily": [
+    {
+      "date": "2026-04-01",
+      "views": 0,
+      "viewers": 0,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-02",
+      "views": 12,
+      "viewers": 4,
+      "visits": 12,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-03",
+      "views": 2,
+      "viewers": 4,
+      "visits": 7,
+      "follows": 1
+    },
+    {
+      "date": "2026-04-04",
+      "views": 3,
+      "viewers": 4,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-05",
+      "views": 4,
+      "viewers": 4,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-06",
+      "views": 5,
+      "viewers": 2,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-07",
+      "views": 56,
+      "viewers": 7,
+      "visits": 25,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-08",
+      "views": 11,
+      "viewers": 3,
+      "visits": 12,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-09",
+      "views": 21,
+      "viewers": 6,
+      "visits": 16,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-10",
+      "views": 18,
+      "viewers": 5,
+      "visits": 8,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-11",
+      "views": 16,
+      "viewers": 7,
+      "visits": 8,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-12",
+      "views": 13,
+      "viewers": 5,
+      "visits": 3,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-13",
+      "views": 6,
+      "viewers": 5,
+      "visits": 1,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-14",
+      "views": 20,
+      "viewers": 4,
+      "visits": 13,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-15",
+      "views": 51,
+      "viewers": 6,
+      "visits": 10,
+      "follows": 1
+    },
+    {
+      "date": "2026-04-16",
+      "views": 17,
+      "viewers": 5,
+      "visits": 6,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-17",
+      "views": 41,
+      "viewers": 7,
+      "visits": 26,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-18",
+      "views": 1,
+      "viewers": 1,
+      "visits": 9,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-19",
+      "views": 52,
+      "viewers": 5,
+      "visits": 21,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-20",
+      "views": 4,
+      "viewers": 3,
+      "visits": 37,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-21",
+      "views": 3,
+      "viewers": 3,
+      "visits": 5,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-22",
+      "views": 27,
+      "viewers": 9,
+      "visits": 11,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-23",
+      "views": 6,
+      "viewers": 4,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-24",
+      "views": 6,
+      "viewers": 4,
+      "visits": 2,
+      "follows": 1
+    },
+    {
+      "date": "2026-04-25",
+      "views": 7,
+      "viewers": 4,
+      "visits": 6,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-26",
+      "views": 2,
+      "viewers": 1,
+      "visits": 0,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-27",
+      "views": 9,
+      "viewers": 2,
+      "visits": 27,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-28",
+      "views": 28,
+      "viewers": 6,
+      "visits": 4,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-29",
+      "views": 19,
+      "viewers": 3,
+      "visits": 9,
+      "follows": 0
+    },
+    {
+      "date": "2026-04-30",
+      "views": 15,
+      "viewers": 6,
+      "visits": 20,
+      "follows": 0
+    }
+  ],
+  "posts": [],
+  "audience": {
+    "cities": [],
+    "countries": []
+  }
+}
