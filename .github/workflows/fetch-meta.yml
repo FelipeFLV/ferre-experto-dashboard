@@ -1,6 +1,8 @@
 name: Fetch Meta insights
 
 on:
+  schedule:
+    - cron: "0 13 1 * *"
   workflow_dispatch:
     inputs:
       month:
@@ -14,7 +16,11 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: fetch-meta
+  cancel-in-progress: false
 
 jobs:
   fetch:
@@ -41,6 +47,19 @@ jobs:
             args+=(--probe)
           fi
           python3 fetch_meta.py "${args[@]}"
+
+      - name: Commit archive
+        if: ${{ github.event_name == 'schedule' || inputs.probe != true }}
+        run: |
+          if [ -z "$(git status --porcelain -- data/archive)" ]; then
+            echo "Sin cambios en data/archive"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/archive
+          git commit -m "data: actualizar archivo Meta"
+          git push
 
       - uses: actions/upload-artifact@v4
         with:

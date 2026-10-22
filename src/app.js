@@ -88,8 +88,13 @@ function monthMeta(key) {
 function monthLabel(key) {
   const meta = monthMeta(key);
   if (!meta) return key;
-  const last = state.data.months[state.data.months.length - 1].key;
-  return key === last ? `${meta.label} (en curso)` : meta.label;
+  return meta.partial ? `${meta.label} (en curso)` : meta.label;
+}
+
+function rangeLabel() {
+  const months = state.data.months;
+  if (!months.length) return "";
+  return months.length === 1 ? months[0].label : `${months[0].label} – ${months[months.length - 1].label}`;
 }
 
 function currentTotals() {
@@ -131,7 +136,8 @@ function setupHeader() {
 function renderKPIs() {
   const totals = currentTotals();
   const previous = previousTotals();
-  const isLastMonth = state.month === state.data.months[state.data.months.length - 1].key;
+  const activeMonth = state.month === "all" ? null : monthMeta(state.month);
+  const isPartial = Boolean(activeMonth && activeMonth.partial);
 
   ["views", "viewers", "visits", "follows"].forEach((key) => {
     document.querySelector(`#kpi-${key}`).textContent = number(totals[key]);
@@ -140,7 +146,7 @@ function renderKPIs() {
     delta.textContent = "";
 
     if (state.month === "all") {
-      delta.textContent = "Agosto – Octubre 2026";
+      delta.textContent = rangeLabel();
       return;
     }
     if (!previous) {
@@ -153,13 +159,13 @@ function renderKPIs() {
     }
     const change = ((totals[key] - previous[key]) / previous[key]) * 100;
     const sign = change > 0 ? "+" : "";
-    delta.textContent = `${sign}${decimal(change)}% vs. ${monthMeta(previous.month).short}${isLastMonth ? " · mes en curso" : ""}`;
+    delta.textContent = `${sign}${decimal(change)}% vs. ${monthMeta(previous.month).short}${isPartial ? " · mes en curso" : ""}`;
     delta.classList.add(change >= 0 ? "is-up" : "is-down");
   });
 
   const caption = state.month === "all"
-    ? `Agosto – Octubre 2026 · datos al ${formatCutoff(state.data.page.cutoff)}.`
-    : `${monthLabel(state.month)} · datos al ${formatCutoff(state.data.page.cutoff)}${isLastMonth ? " · mes en curso (1–21 oct vs. sep completo)" : ""}.`;
+    ? `${rangeLabel()} · datos al ${formatCutoff(state.data.page.cutoff)}.`
+    : `${monthLabel(state.month)} · datos al ${formatCutoff(state.data.page.cutoff)}.`;
   document.querySelector("#period-caption").textContent = caption;
 }
 
@@ -240,9 +246,9 @@ function renderTrendChart() {
   }
 
   const scope = state.granularity === "monthly"
-    ? "Agosto – Octubre 2026"
+    ? rangeLabel()
     : state.month === "all" ? "Todo el período" : monthLabel(state.month);
-  document.querySelector("#chart-note").textContent = `${scope} · serie ${state.granularity === "daily" ? "diaria" : "mensual"} · Fuente: Meta Business Suite.`;
+  document.querySelector("#chart-note").textContent = `${scope} · serie ${state.granularity === "daily" ? "diaria" : "mensual"} · Fuente: Meta Graph API.`;
 }
 
 function metricBlock(label, value) {
@@ -280,13 +286,14 @@ function postCard(post) {
     : `<p class="post-caption is-empty">Video publicado el ${escapeHtml(formatDate(post.date))}.</p>`;
   const media = post.image
     ? `<img src="${escapeHtml(post.image)}" alt="Publicación del ${escapeHtml(formatDate(post.date))}" loading="lazy" width="640" height="800">`
-    : `<div class="post-placeholder"><div><strong>Video sin captura</strong><span>Métricas de reproducción disponibles</span></div></div>`;
+    : `<div class="post-placeholder"><div><strong>${post.isVideo ? "Video sin captura" : "Publicación sin captura"}</strong><span>${post.isVideo ? "Métricas de reproducción disponibles" : "Métricas de la publicación disponibles"}</span></div></div>`;
   const link = post.permalink
     ? `<a class="post-link" href="${escapeHtml(post.permalink)}" target="_blank" rel="noopener">Ver publicación ↗</a>`
     : "";
+  const audienceValue = post.metrics.reach != null ? post.metrics.reach : post.metrics.viewers;
   const metrics = [
     ["Views", number(post.metrics.views)],
-    ["Alcance", number(post.metrics.reach)],
+    [post.metrics.reach != null ? "Alcance" : "Viewers", number(audienceValue)],
     ["Interacciones", number(post.metrics.interactions)],
     ["Engagement", percent(post.engagementRate)],
     ["Reacciones", number(post.metrics.reactions)],
@@ -327,9 +334,10 @@ function filteredPosts() {
     return true;
   });
 
+  const audienceValue = (post) => post.metrics.reach ?? post.metrics.viewers ?? -1;
   const sorters = {
     date: (a, b) => b.date.localeCompare(a.date),
-    reach: (a, b) => (b.metrics.reach || -1) - (a.metrics.reach || -1),
+    reach: (a, b) => audienceValue(b) - audienceValue(a),
     views: (a, b) => (b.metrics.views || -1) - (a.metrics.views || -1),
     interactions: (a, b) => (b.metrics.interactions || -1) - (a.metrics.interactions || -1),
     engagement: (a, b) => (b.engagementRate || -1) - (a.engagementRate || -1),
@@ -347,67 +355,82 @@ function renderPosts() {
 
 function renderAudience() {
   if (typeof Chart === "undefined") return;
-  const audience = state.data.audience;
-  const men = audience.ageGender.reduce((sum, row) => sum + row.men, 0);
-  const women = audience.ageGender.reduce((sum, row) => sum + row.women, 0);
+  const audience = state.data.audience || {};
+  const ageGender = audience.ageGender || [];
+  const cities = audience.cities || [];
+  const countries = audience.countries || [];
 
-  new Chart(document.querySelector("#audience-gender"), {
-    type: "doughnut",
-    data: {
-      labels: ["Hombres", "Mujeres"],
-      datasets: [{
-        data: [men, women],
-        backgroundColor: ["#c62828", "#1c1c1c"],
-        borderColor: "#ffffff",
-        borderWidth: 3,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: "62%",
-      plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
-        tooltip: {
-          callbacks: {
-            label: (context) => `${context.label}: ${DECIMAL.format(context.parsed)}%`,
+  const showEmpty = (selector, text) => {
+    const canvas = document.querySelector(selector);
+    if (!canvas) return;
+    canvas.parentElement.innerHTML = `<p class="note">${escapeHtml(text)}</p>`;
+  };
+
+  if (!ageGender.length) {
+    showEmpty("#audience-gender", "Meta no devuelve el desglose por género vía API.");
+    showEmpty("#audience-age", "Meta no devuelve el desglose por edad vía API.");
+  } else {
+    const men = ageGender.reduce((sum, row) => sum + row.men, 0);
+    const women = ageGender.reduce((sum, row) => sum + row.women, 0);
+
+    new Chart(document.querySelector("#audience-gender"), {
+      type: "doughnut",
+      data: {
+        labels: ["Hombres", "Mujeres"],
+        datasets: [{
+          data: [men, women],
+          backgroundColor: ["#c62828", "#1c1c1c"],
+          borderColor: "#ffffff",
+          borderWidth: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "62%",
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.label}: ${DECIMAL.format(context.parsed)}%`,
+            },
           },
         },
       },
-    },
-  });
+    });
 
-  new Chart(document.querySelector("#audience-age"), {
-    type: "bar",
-    data: {
-      labels: audience.ageGender.map((row) => row.age),
-      datasets: [
-        { label: "Hombres", data: audience.ageGender.map((row) => row.men), backgroundColor: "#c62828", borderRadius: 4 },
-        { label: "Mujeres", data: audience.ageGender.map((row) => row.women), backgroundColor: "#1c1c1c", borderRadius: 4 },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
-        tooltip: {
-          callbacks: {
-            label: (context) => `${context.dataset.label}: ${DECIMAL.format(context.parsed.y)}%`,
+    new Chart(document.querySelector("#audience-age"), {
+      type: "bar",
+      data: {
+        labels: ageGender.map((row) => row.age),
+        datasets: [
+          { label: "Hombres", data: ageGender.map((row) => row.men), backgroundColor: "#c62828", borderRadius: 4 },
+          { label: "Mujeres", data: ageGender.map((row) => row.women), backgroundColor: "#1c1c1c", borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${DECIMAL.format(context.parsed.y)}%`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, border: { display: false } },
+          y: {
+            beginAtZero: true,
+            grid: { color: "rgba(28, 28, 28, 0.07)" },
+            border: { display: false },
+            ticks: { callback: (value) => `${value}%` },
           },
         },
       },
-      scales: {
-        x: { grid: { display: false }, border: { display: false } },
-        y: {
-          beginAtZero: true,
-          grid: { color: "rgba(28, 28, 28, 0.07)" },
-          border: { display: false },
-          ticks: { callback: (value) => `${value}%` },
-        },
-      },
-    },
-  });
+    });
+  }
 
   const horizontal = (selector, rows, color) => {
     new Chart(document.querySelector(selector), {
@@ -443,8 +466,10 @@ function renderAudience() {
     });
   };
 
-  horizontal("#audience-cities", audience.cities, "#c62828");
-  horizontal("#audience-countries", audience.countries, "#1c1c1c");
+  if (cities.length) horizontal("#audience-cities", cities, "#c62828");
+  else showEmpty("#audience-cities", "Meta no devuelve ciudades de la audiencia vía API.");
+  if (countries.length) horizontal("#audience-countries", countries, "#1c1c1c");
+  else showEmpty("#audience-countries", "Meta no devuelve países de la audiencia vía API.");
 }
 
 function bindEvents() {

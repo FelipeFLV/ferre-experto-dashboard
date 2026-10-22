@@ -91,7 +91,7 @@
         <div class="chart-box">
           <canvas id="trend-chart" aria-label="Evolución de la métrica seleccionada" role="img"></canvas>
         </div>
-        <p class="note" id="chart-note">Serie diaria · Fuente: Meta Business Suite.</p>
+        <p class="note" id="chart-note">Serie diaria · Fuente: Meta Graph API.</p>
       </div>
     </section>
 
@@ -160,7 +160,7 @@
           </div>
         </article>
       </div>
-      <p class="note">El desglose por dispositivo no está disponible en los exports de Meta Business Suite.</p>
+      <p class="note">La API de Meta no siempre devuelve edad, género, ciudad o país. Si una métrica no está disponible, se indica en su panel.</p>
     </section>
 
     <section id="metodologia" class="wrap section">
@@ -170,25 +170,25 @@
         <p class="section-sub">Cómo leer este informe y de dónde salen los números.</p>
       </div>
       <div class="panel prose">
-        <p><strong>Fuente:</strong> exportaciones CSV de Meta Business Suite del fanpage Ferre Experto Pacasmayo. <strong>Fecha de corte:</strong> <span id="cutoff-copy">—</span>.</p>
+        <p><strong>Fuente:</strong> Graph API de Meta (Page Insights) del fanpage Ferre Experto Pacasmayo. <strong>Fecha de corte:</strong> <span id="cutoff-copy">—</span>.</p>
         <ul>
           <li><strong>Views:</strong> veces que se vieron las publicaciones del fanpage.</li>
           <li><strong>Viewers:</strong> personas únicas que vieron contenido.</li>
           <li><strong>Visits:</strong> visitas a la página del fanpage.</li>
           <li><strong>Follows:</strong> seguidores netos ganados en el período.</li>
-          <li><strong>Alcance:</strong> personas únicas alcanzadas por una publicación.</li>
+          <li><strong>Viewers:</strong> personas únicas que vieron una publicación; Meta no expone alcance por publicación vía API.</li>
           <li><strong>Interacciones:</strong> reacciones + comentarios + compartidos.</li>
-          <li><strong>Engagement:</strong> interacciones divididas entre alcance. Se muestra “—” cuando no hay alcance o vistas comparables.</li>
+          <li><strong>Engagement:</strong> interacciones divididas entre alcance o, si no hay alcance, entre views. Se muestra “—” cuando no hay base comparable.</li>
         </ul>
-        <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron. Octubre está incompleto: la variación se etiqueta como “mes en curso”.</p>
-        <p>La audiencia corresponde a los seguidores del fanpage y es una foto fija al corte; no cambia con el selector de mes.</p>
+        <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron. El mes en curso se marca como parcial y no se compara como un mes cerrado.</p>
+        <p>La audiencia corresponde a los seguidores del fanpage y es una foto fija al corte; no cambia con el selector de mes. La API puede no devolver todos sus desgloses.</p>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="wrap">
-      <p>Ferre Experto Pacasmayo · Dashboard generado a partir de Meta Business Suite.</p>
+      <p>Ferre Experto Pacasmayo · Dashboard generado a partir de Meta Graph API.</p>
       <p class="footer-note">Datos al <span id="footer-cutoff">—</span>.</p>
     </div>
   </footer>

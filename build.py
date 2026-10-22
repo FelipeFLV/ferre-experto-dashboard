@@ -1,22 +1,53 @@
-import csv
-import io
 import json
 import shutil
 import subprocess
-from datetime import datetime
+from calendar import monthrange
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
+ARCHIVE = DATA / "archive"
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
 ASSETS = ROOT / "assets" / "posts"
 
-MONTHS = [
-    {"key": "2026-08", "label": "Agosto 2026", "short": "Ago"},
-    {"key": "2026-09", "label": "Septiembre 2026", "short": "Sep"},
-    {"key": "2026-10", "label": "Octubre 2026", "short": "Oct"},
-]
+SERIES_KEYS = ("views", "viewers", "visits", "follows")
+METRIC_KEYS = (
+    "views",
+    "viewers",
+    "reach",
+    "interactions",
+    "reactions",
+    "comments",
+    "shares",
+    "totalClicks",
+    "linkClicks",
+    "otherClicks",
+    "photoClicks",
+    "secondsViewed",
+    "averageSecondsViewed",
+    "threeSecondViews",
+    "oneMinuteViews",
+    "threeSecondViewers",
+    "oneMinuteViewers",
+    "duration",
+)
+MONTH_NAMES = (
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+)
+MONTH_SHORT = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
 
 
 def read_text(path):
@@ -28,233 +59,74 @@ def read_text(path):
     return raw.decode("utf-8")
 
 
-def to_num(value):
-    if value is None:
-        return None
-    text = str(value).strip().replace(",", "")
-    if text in ("", "N/A", "-", "--"):
+def to_int(value):
+    if value is None or isinstance(value, bool):
         return None
     try:
-        return float(text)
-    except ValueError:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
         return None
 
 
-def to_int(value):
-    number = to_num(value)
-    if number is None:
-        return None
-    return int(round(number))
+def month_bounds(month):
+    try:
+        year, month_number = [int(part) for part in month.split("-")]
+        first = date(year, month_number, 1)
+    except (TypeError, ValueError):
+        raise SystemExit(f"Mes inválido en el archivo: {month!r}")
+    last = date(year, month_number, monthrange(year, month_number)[1])
+    return first, last
 
 
-def parse_date(value):
-    text = str(value).strip()
-    for fmt in ("%m/%d/%Y %H:%M", "%m/%d/%Y", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+def month_meta(month):
+    year, month_number = [int(part) for part in month.split("-")]
+    return {
+        "key": month,
+        "label": f"{MONTH_NAMES[month_number - 1]} {year}",
+        "short": MONTH_SHORT[month_number - 1],
+    }
+
+
+def load_archives():
+    files = sorted(ARCHIVE.glob("*.json"))
+    if not files:
+        raise SystemExit(f"No hay archivos de Meta en {ARCHIVE}")
+    archives = []
+    for path in files:
         try:
-            return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    raise SystemExit(f"No se pudo interpretar la fecha: {value!r}")
+            payload = json.loads(read_text(path))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"JSON inválido en {path}: {exc}") from None
+        month = payload.get("month") or path.stem
+        if month != path.stem:
+            raise SystemExit(f"El mes de {path.name} no coincide con su nombre: {month!r}")
+        if not payload.get("daily"):
+            raise SystemExit(f"El archivo {path.name} no tiene serie diaria")
+        payload["month"] = month
+        archives.append(payload)
+    archives.sort(key=lambda item: item["month"])
+    return archives
 
 
-def require(path):
-    if not Path(path).exists():
-        raise SystemExit(f"Falta el archivo requerido: {path}")
-    return path
-
-
-def read_results(path):
-    require(path)
-    lines = read_text(path).splitlines()
-    start = None
-    for index, line in enumerate(lines):
-        if line.strip().lstrip('"').lower().startswith("date"):
-            start = index + 1
-            break
-    if start is None:
-        raise SystemExit(f"No se encontró el encabezado 'Date' en {path}")
-    rows = []
-    for row in csv.reader(lines[start:]):
-        if len(row) < 2 or not row[0].strip():
-            continue
-        rows.append((row[0].strip()[:10], to_num(row[1]) or 0.0))
-    if not rows:
-        raise SystemExit(f"La serie no tiene datos: {path}")
-    return rows
-
-
-def read_audience(path):
-    require(path)
-    lines = [line for line in read_text(path).splitlines() if line.strip()]
-    rows = [row for row in csv.reader(lines)]
-    rows = [row for row in rows if row and not row[0].strip().startswith("sep=")]
-    markers = ("Age & gender", "Top cities", "Top countries")
-
-    result = {"ageGender": [], "cities": [], "countries": []}
-    index = 0
-    while index < len(rows):
-        title = rows[index][0].strip()
-        if title == "Age & gender":
-            index += 1
-            if index < len(rows) and any(cell.strip().lower() == "men" for cell in rows[index]):
-                index += 1
-            while index < len(rows) and rows[index][0].strip() not in markers:
-                row = rows[index]
-                if len(row) >= 3 and row[0].strip():
-                    result["ageGender"].append({
-                        "age": row[0].strip(),
-                        "men": to_num(row[1]) or 0.0,
-                        "women": to_num(row[2]) or 0.0,
-                    })
-                index += 1
-        elif title in ("Top cities", "Top countries"):
-            key = "cities" if title == "Top cities" else "countries"
-            index += 1
-            names = rows[index] if index < len(rows) else []
-            index += 1
-            values = rows[index] if index < len(rows) else []
-            index += 1
-            for name, value in zip(names, values):
-                if name.strip():
-                    result[key].append({"name": name.strip(), "pct": to_num(value) or 0.0})
-        else:
-            index += 1
-
-    if not result["ageGender"]:
-        raise SystemExit(f"No se pudo leer la demografía en {path}")
-    return result
-
-
-def read_posts(path):
-    require(path)
-    reader = csv.DictReader(io.StringIO(read_text(path)))
-    posts = []
-    for row in reader:
-        if not row.get("Post ID"):
-            continue
-        reactions = to_int(row.get("Reactions"))
-        comments = to_int(row.get("Comments"))
-        shares = to_int(row.get("Shares"))
-        interactions = to_int(row.get("Reactions, Comments and Shares"))
-        if interactions is None:
-            interactions = (reactions or 0) + (comments or 0) + (shares or 0)
-        posts.append({
-            "id": row["Post ID"].strip(),
-            "date": parse_date(row.get("Publish time")),
-            "type": (row.get("Post type") or "").strip(),
-            "caption": (row.get("Title") or "").strip(),
-            "permalink": (row.get("Permalink") or "").strip() or None,
-            "metrics": {
-                "views": to_int(row.get("Views")),
-                "reach": to_int(row.get("Reach")),
-                "interactions": interactions,
-                "reactions": reactions,
-                "comments": comments,
-                "shares": shares,
-                "totalClicks": to_int(row.get("Total clicks")),
-                "linkClicks": to_int(row.get("Link Clicks")),
-                "otherClicks": to_int(row.get("Other Clicks")),
-                "photoClicks": to_int(row.get("Matched Audience Targeting Consumption (Photo Click)")),
-                "secondsViewed": to_num(row.get("Seconds viewed")),
-                "averageSecondsViewed": to_num(row.get("Average Seconds viewed")),
-                "threeSecondViews": None,
-                "oneMinuteViews": None,
-                "threeSecondViewers": None,
-                "oneMinuteViewers": None,
-                "duration": to_int(row.get("Duration (sec)")),
-            },
-            "isVideo": (row.get("Post type") or "").strip().lower() == "videos",
-        })
-    return posts
-
-
-def read_videos(path):
-    require(path)
-    reader = csv.DictReader(io.StringIO(read_text(path)))
-    videos = []
-    for row in reader:
-        if not row.get("Video asset ID"):
-            continue
-        videos.append({
-            "id": row["Video asset ID"].strip(),
-            "date": parse_date(row.get("Publish time")),
-            "duration": to_int(row.get("Duration (sec)")),
-            "reach": to_int(row.get("Reach")),
-            "threeSecondViews": to_int(row.get("3-second video views")),
-            "oneMinuteViews": to_int(row.get("1-minute video views")),
-            "secondsViewed": to_num(row.get("Seconds viewed")),
-            "averageSecondsViewed": to_num(row.get("Average Seconds viewed")),
-            "threeSecondViewers": to_int(row.get("3-Second viewers")),
-            "oneMinuteViewers": to_int(row.get("1-minute viewers")),
-            "reactions": to_int(row.get("Reactions")),
-            "comments": to_int(row.get("Comments")),
-            "shares": to_int(row.get("Shares")),
-            "interactions": to_int(row.get("Reactions, Comments and Shares")),
-        })
-    return videos
+def archive_cutoff(archive):
+    first, last = month_bounds(archive["month"])
+    fetched = str(archive.get("fetched_at") or "")[:10]
+    try:
+        fetched_date = date.fromisoformat(fetched)
+    except ValueError:
+        fetched_date = None
+    if fetched_date is not None and first <= fetched_date < last:
+        return fetched_date.isoformat()
+    return last.isoformat()
 
 
 def engagement_rate(interactions, reach, views):
-    if interactions is None or not reach or views is None:
+    if interactions is None:
         return None
-    return round(interactions / reach * 100, 1)
-
-
-def merge_videos(posts, videos):
-    by_date = {}
-    for post in posts:
-        by_date[post["date"]] = post
-    used = set()
-
-    for video in videos:
-        post = by_date.get(video["date"])
-        if post is not None:
-            metrics = post["metrics"]
-            metrics["threeSecondViews"] = video["threeSecondViews"]
-            metrics["oneMinuteViews"] = video["oneMinuteViews"]
-            metrics["threeSecondViewers"] = video["threeSecondViewers"]
-            metrics["oneMinuteViewers"] = video["oneMinuteViewers"]
-            metrics["duration"] = post["metrics"]["duration"] or video["duration"]
-            metrics["secondsViewed"] = metrics["secondsViewed"] or video["secondsViewed"]
-            metrics["averageSecondsViewed"] = metrics["averageSecondsViewed"] or video["averageSecondsViewed"]
-            post["isVideo"] = True
-            used.add(video["date"])
-
-    for video in videos:
-        if video["date"] in used:
-            continue
-        interactions = video["interactions"]
-        if interactions is None:
-            interactions = (video["reactions"] or 0) + (video["comments"] or 0) + (video["shares"] or 0)
-        posts.append({
-            "id": f"video-{video['date']}",
-            "date": video["date"],
-            "type": "Video",
-            "caption": "",
-            "permalink": None,
-            "image": None,
-            "isVideo": True,
-            "metrics": {
-                "views": None,
-                "reach": video["reach"],
-                "interactions": interactions,
-                "reactions": video["reactions"],
-                "comments": video["comments"],
-                "shares": video["shares"],
-                "totalClicks": None,
-                "linkClicks": None,
-                "otherClicks": None,
-                "photoClicks": None,
-                "secondsViewed": video["secondsViewed"],
-                "averageSecondsViewed": video["averageSecondsViewed"],
-                "threeSecondViews": video["threeSecondViews"],
-                "oneMinuteViews": video["oneMinuteViews"],
-                "threeSecondViewers": video["threeSecondViewers"],
-                "oneMinuteViewers": video["oneMinuteViewers"],
-                "duration": video["duration"],
-            },
-        })
-    return posts
+    denominator = reach or views
+    if not denominator:
+        return None
+    return round(interactions / denominator * 100, 1)
 
 
 def has_image_optimizer():
@@ -267,67 +139,95 @@ def has_image_optimizer():
         return False
 
 
-def image_for(date, extension):
-    if (ASSETS / f"{date}.png").exists():
-        return f"assets/posts/{date}{extension}"
-    candidate = ASSETS / f"{date}{extension}"
+def image_for(day, extension):
+    if not day:
+        return None
+    if (ASSETS / f"{day}.png").exists():
+        return f"assets/posts/{day}{extension}"
+    candidate = ASSETS / f"{day}{extension}"
     if candidate.exists():
-        return f"assets/posts/{date}{extension}"
+        return f"assets/posts/{candidate.name}"
     return None
 
 
+def build_audience(archives):
+    target = {"ageGender": [], "cities": [], "countries": []}
+    for archive in reversed(archives):
+        raw = archive.get("audience") or {}
+        candidate = {
+            "ageGender": raw.get("ageGender") or [],
+            "cities": raw.get("cities") or [],
+            "countries": raw.get("countries") or [],
+        }
+        if any(candidate.values()):
+            return candidate
+    return target
+
+
 def build_payload():
-    require(DATA / "page.json")
-    page = json.loads(read_text(DATA / "page.json"))
+    archives = load_archives()
+    latest = archives[-1]
+    cutoff = archive_cutoff(latest)
 
-    posts = merge_videos(read_posts(DATA / "posts.csv"), read_videos(DATA / "videos.csv"))
-    posts.sort(key=lambda item: item["date"], reverse=True)
+    months = []
+    for archive in archives:
+        meta = month_meta(archive["month"])
+        _, last = month_bounds(archive["month"])
+        meta["partial"] = meta["key"] == cutoff[:7] and cutoff < last.isoformat()
+        months.append(meta)
 
-    extension = ".jpg" if has_image_optimizer() else ".png"
-    for post in posts:
-        post.setdefault("image", image_for(post["date"], extension))
-        post["month"] = post["date"][:7]
-        post["engagementRate"] = engagement_rate(
-            post["metrics"]["interactions"],
-            post["metrics"]["reach"],
-            post["metrics"]["views"],
-        )
-        post["metrics"] = {key: value for key, value in post["metrics"].items()}
-
-    series = {
-        "views": read_results(DATA / "results-views.csv"),
-        "viewers": read_results(DATA / "results-viewers.csv"),
-        "visits": read_results(DATA / "results-visits.csv"),
-        "follows": read_results(DATA / "results-follows.csv"),
-    }
-
-    dates = sorted({date for rows in series.values() for date, _ in rows})
-    daily = []
-    for date in dates:
-        entry = {"date": date}
-        for key, rows in series.items():
-            entry[key] = next((value for day, value in rows if day == date), 0)
-        daily.append(entry)
+    by_date = {}
+    for archive in archives:
+        for row in archive.get("daily", []):
+            day = row.get("date")
+            if not day or day > cutoff:
+                continue
+            by_date[day] = {key: to_int(row.get(key)) or 0 for key in SERIES_KEYS}
+    daily = [{"date": day, **by_date[day]} for day in sorted(by_date)]
 
     monthly = []
-    for month in MONTHS:
-        entry = {"month": month["key"]}
-        for key in series:
-            entry[key] = sum(row[key] for row in daily if row["date"].startswith(month["key"]))
+    for meta in months:
+        rows = [row for row in daily if row["date"].startswith(meta["key"])]
+        entry = {"month": meta["key"]}
+        for key in SERIES_KEYS:
+            entry[key] = sum(row[key] for row in rows)
         monthly.append(entry)
 
-    audience = read_audience(DATA / "audience.csv")
+    extension = ".jpg" if has_image_optimizer() else ".png"
+    posts_by_id = {}
+    for archive in archives:
+        for post in archive.get("posts", []):
+            post_id = post.get("id")
+            if post_id:
+                posts_by_id[post_id] = post
 
+    posts = []
+    for raw in posts_by_id.values():
+        post = dict(raw)
+        post["month"] = str(post.get("date") or "")[:7]
+        metrics = dict(post.get("metrics") or {})
+        for key in METRIC_KEYS:
+            metrics.setdefault(key, None)
+        post["metrics"] = metrics
+        if not post.get("image"):
+            post["image"] = image_for(post.get("date"), extension)
+        post["engagementRate"] = engagement_rate(
+            metrics["interactions"], metrics["reach"], metrics["views"]
+        )
+        posts.append(post)
+    posts.sort(key=lambda item: item["date"], reverse=True)
+
+    page = latest.get("page") or {}
     return {
         "page": {
             "name": page.get("name", "Ferre Experto Pacasmayo"),
-            "cutoff": page.get("cutoff", "2026-10-21"),
-            "followers": page.get("followers", 0),
+            "cutoff": cutoff,
+            "followers": to_int(page.get("followers")) or 0,
         },
-        "months": MONTHS,
+        "months": months,
         "results": {"daily": daily, "monthly": monthly},
         "posts": posts,
-        "audience": audience,
+        "audience": build_audience(archives),
     }
 
 
@@ -372,19 +272,20 @@ def copy_static():
 
 def main():
     payload = build_payload()
-    if len(payload["posts"]) < 1:
+    if not payload["posts"]:
         raise SystemExit("No se encontraron publicaciones para generar el dashboard.")
     copy_static()
     optimize_images()
-    DIST.mkdir(parents=True, exist_ok=True)
     (DIST / "data.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    totals = payload["results"]["monthly"]
     print(f"Publicaciones: {len(payload['posts'])}")
-    for month in totals:
-        print(f"{month['month']}: views={month['views']:.0f} viewers={month['viewers']:.0f} visits={month['visits']:.0f} follows={month['follows']:.0f}")
+    for month in payload["results"]["monthly"]:
+        print(
+            f"{month['month']}: views={month['views']:.0f} viewers={month['viewers']:.0f} "
+            f"visits={month['visits']:.0f} follows={month['follows']:.0f}"
+        )
     print(f"Sitio generado en {DIST}")
 
 

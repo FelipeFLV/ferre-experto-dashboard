@@ -4,11 +4,12 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 
 ## Contenido
 
-- `data/`: exports normalizados de Meta Business Suite y `page.json` con el corte y los seguidores.
+- `data/archive/`: JSON mensual descargado de Meta Graph API. Es la fuente del dashboard.
+- `data/*.csv`: exports históricos de Meta Business Suite, conservados solo como referencia.
 - `assets/posts/`: capturas originales de las publicaciones (`YYYY-MM-DD.png`).
 - `src/`: HTML, CSS, JavaScript y Chart.js vendorizado.
 - `dist/`: sitio generado. No se versiona; lo reconstruye el build o GitHub Actions.
-- `build.py`: parsea los CSV, cruza publicaciones con videos, calcula agregados y genera `dist/`.
+- `build.py`: lee `data/archive/*.json`, calcula agregados, meses dinámicos y genera `dist/`.
 - `serve.py`: servidor local para previsualizar `dist/`.
 - `fetch_meta.py`: descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`.
 - `meta_page_token.py`: asistente local para obtener un Page Access Token de larga duración sin Business Portfolio.
@@ -35,15 +36,11 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 
 ## Actualizar datos
 
-1. Exporta desde Meta Business Suite: Results, Content y Audience.
-2. Reemplaza los archivos correspondientes en `data/`:
-   - `results-views.csv`, `results-viewers.csv`, `results-visits.csv`, `results-follows.csv`
-   - `posts.csv`, `videos.csv`
-   - `audience.csv`
-3. Agrega o reemplaza las capturas en `assets/posts/` usando la fecha de publicación como nombre: `YYYY-MM-DD.png`. Si falta una captura se muestra un placeholder.
-4. Si cambió el número de seguidores, edita `data/page.json` (`followers`). La fecha de corte también vive ahí (`cutoff`).
-5. Ejecuta `python3 build.py` y revisa el sitio en local.
-6. Haz commit y push a `main`; el workflow de GitHub Actions ejecuta tests, reconstruye y publica.
+1. Ejecuta el workflow **Fetch Meta insights** desde GitHub Actions. Si dejas el mes vacío, descarga el mes anterior.
+2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea y el push reconstruye y publica el dashboard.
+3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
+4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
+5. En local: `python3 build.py` y `python3 serve.py`.
 
 ## Automatización con Meta API
 
@@ -109,7 +106,7 @@ Sin `--month` descarga el mes anterior. El archivo queda en `data/archive/2026-1
 
 También puedes ejecutar el workflow manual **Fetch Meta insights** desde GitHub Actions, con los mismos secretos. El JSON se adjunta como artefacto durante 14 días.
 
-La integración de estos archivos con `build.py` y la publicación mensual automática se activará después de validar la primera descarga real. Hasta entonces, el dashboard sigue usando los CSV de `data/`.
+El dashboard consume directamente esos archivos. El workflow corre automáticamente el día 1 a las **08:00 Perú (13:00 UTC)**, descarga el mes anterior, commitea el archivo y publica el sitio. También puedes ejecutarlo manualmente para backfill.
 
 ## Publicar en GitHub Pages
 
@@ -129,7 +126,9 @@ python3 -m unittest discover -s tests -v
 ## Criterios de datos
 
 - Solo métricas orgánicas del fanpage; anuncios y campañas quedan fuera.
-- Los KPIs mensuales suman los días del export. Octubre es un mes en curso: se compara contra septiembre completo y se marca en la interfaz.
-- `Engagement = interacciones / alcance`. Se muestra `—` cuando el alcance es 0 o no hay Views, para no publicar tasas engañosas.
-- La audiencia es una foto fija de los seguidores al corte; no cambia con el selector de mes.
-- La publicación del 01/09 se cruza con su fila de video para no duplicarla. El video del 16/09 no tiene captura ni Views en el export; se muestra con placeholder.
+- Los KPIs mensuales suman los días del archivo hasta la fecha de corte. El mes en curso se marca como parcial y no se compara como mes cerrado.
+- `Engagement = interacciones / alcance`; si Meta no expone alcance por publicación, se usa Views como denominador. Se muestra `—` cuando no hay base comparable.
+- Meta puede no devolver edad, género, ciudad o país; en ese caso el panel lo indica.
+- Las métricas por publicación son acumuladas (`lifetime`) hasta el corte, no solo del mes de publicación.
+- El alcance por publicación no está disponible vía API; se muestra Viewers cuando existe.
+- La serie diaria se corta en la fecha de corte; no se publican días futuros con ceros.

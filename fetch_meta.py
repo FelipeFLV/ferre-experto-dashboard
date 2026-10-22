@@ -515,16 +515,18 @@ def fetch_audience(api, page_id):
 
 def build_month_payload(api, page_id, first, last):
     page = fetch_page(api, page_id)
-    page_insights = fetch_insights(api, page_id, PAGE_METRICS, "day", first, last)
+    today = datetime.now(TZ).date()
+    data_last = min(last, today) if first <= today <= last else last
+    page_insights = fetch_insights(api, page_id, PAGE_METRICS, "day", first, data_last)
     return {
         "month": first.strftime("%Y-%m"),
         "since": first.isoformat(),
         "until": last.isoformat(),
-        "cutoff": last.isoformat(),
+        "cutoff": data_last.isoformat(),
         "fetched_at": datetime.now(TZ).isoformat(timespec="seconds"),
         "page": page,
-        "daily": build_daily(page_insights, first, last),
-        "posts": fetch_posts(api, page_id, first, last),
+        "daily": build_daily(page_insights, first, data_last),
+        "posts": fetch_posts(api, page_id, first, data_last),
         "audience": fetch_audience(api, page_id),
     }
 

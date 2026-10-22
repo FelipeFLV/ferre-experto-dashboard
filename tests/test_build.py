@@ -14,47 +14,66 @@ class BuildTests(unittest.TestCase):
         cls.posts = cls.payload["posts"]
         cls.months = {row["month"]: row for row in cls.payload["results"]["monthly"]}
 
-    def test_posts_count(self):
-        self.assertEqual(len(build.read_posts(build.DATA / "posts.csv")), 7)
+    def test_months_are_built_from_archives(self):
+        self.assertEqual([month["key"] for month in self.payload["months"]], ["2026-08", "2026-09", "2026-10"])
+        self.assertEqual(self.payload["months"][0]["label"], "Agosto 2026")
+        self.assertEqual(self.payload["months"][-1]["short"], "Oct")
+        self.assertEqual([month["partial"] for month in self.payload["months"]], [False, False, True])
+        self.assertEqual(self.payload["page"]["cutoff"], "2026-10-21")
 
-    def test_videos_count(self):
-        self.assertEqual(len(build.read_videos(build.DATA / "videos.csv")), 2)
-
-    def test_publications_merge(self):
-        self.assertEqual(len(self.posts), 8)
-        dates = [post["date"] for post in self.posts]
-        self.assertEqual(dates.count("2026-09-01"), 1)
-        self.assertIn("2026-09-16", dates)
-        september_first = next(post for post in self.posts if post["date"] == "2026-09-01")
-        self.assertEqual(september_first["metrics"]["threeSecondViews"], 241)
+    def test_daily_series_stops_at_cutoff(self):
+        daily = self.payload["results"]["daily"]
+        self.assertEqual(len(daily), 82)
+        self.assertEqual(daily[-1]["date"], "2026-10-21")
+        self.assertTrue(all(row["date"] <= self.payload["page"]["cutoff"] for row in daily))
+        self.assertEqual(len({row["date"] for row in daily}), len(daily))
 
     def test_results_totals(self):
-        self.assertEqual(sum(row["views"] for row in self.payload["results"]["daily"]), 10574)
-        self.assertEqual(sum(row["viewers"] for row in self.payload["results"]["daily"]), 3682)
-        self.assertEqual(sum(row["visits"] for row in self.payload["results"]["daily"]), 2156)
+        self.assertEqual(sum(row["views"] for row in self.payload["results"]["daily"]), 10531)
+        self.assertEqual(sum(row["viewers"] for row in self.payload["results"]["daily"]), 3660)
+        self.assertEqual(sum(row["visits"] for row in self.payload["results"]["daily"]), 2150)
         self.assertEqual(sum(row["follows"] for row in self.payload["results"]["daily"]), 67)
 
     def test_monthly_totals(self):
-        self.assertEqual(self.months["2026-08"]["views"], 2797)
-        self.assertEqual(self.months["2026-09"]["views"], 6154)
-        self.assertEqual(self.months["2026-10"]["views"], 1623)
+        self.assertEqual(self.months["2026-08"]["views"], 2767)
+        self.assertEqual(self.months["2026-09"]["views"], 6145)
+        self.assertEqual(self.months["2026-10"]["views"], 1619)
         self.assertEqual(self.months["2026-09"]["follows"], 55)
 
-    def test_audience_gender_sums_to_100(self):
-        men = sum(row["men"] for row in self.payload["audience"]["ageGender"])
-        women = sum(row["women"] for row in self.payload["audience"]["ageGender"])
-        self.assertAlmostEqual(men + women, 100, delta=0.2)
+    def test_publications_merge_by_id(self):
+        self.assertEqual(len(self.posts), 8)
+        self.assertEqual(len({post["id"] for post in self.posts}), len(self.posts))
+        self.assertEqual([post["date"] for post in self.posts], sorted((post["date"] for post in self.posts), reverse=True))
 
-    def test_zero_reach_has_no_engagement(self):
-        self.assertIsNone(build.engagement_rate(10, 0, 100))
-        self.assertIsNone(build.engagement_rate(10, 100, None))
+    def test_api_post_metrics(self):
+        photo = next(post for post in self.posts if post["date"] == "2026-10-14")
+        self.assertEqual(photo["metrics"]["views"], 1490)
+        self.assertEqual(photo["metrics"]["viewers"], 763)
+        self.assertEqual(photo["metrics"]["interactions"], 36)
+        self.assertEqual(photo["metrics"]["totalClicks"], 20)
+        self.assertEqual(photo["engagementRate"], 2.4)
+        suffix = ".jpg" if build.has_image_optimizer() else ".png"
+        self.assertEqual(photo["image"], f"assets/posts/2026-10-14{suffix}")
+
+        video = next(post for post in self.posts if post["date"] == "2026-10-21")
+        self.assertTrue(video["isVideo"])
+        self.assertEqual(video["metrics"]["views"], 308)
+        self.assertEqual(video["metrics"]["interactions"], 238)
+        self.assertIsNone(video["metrics"]["reach"])
+        self.assertEqual(video["engagementRate"], 77.3)
+
+    def test_audience_is_empty_without_api_demographics(self):
+        self.assertEqual(self.payload["audience"], {"ageGender": [], "cities": [], "countries": []})
+
+    def test_zero_reach_falls_back_to_views(self):
+        self.assertIsNone(build.engagement_rate(10, 0, None))
+        self.assertIsNone(build.engagement_rate(10, None, None))
         self.assertEqual(build.engagement_rate(25, 100, 500), 25.0)
+        self.assertEqual(build.engagement_rate(25, None, 500), 5.0)
 
     def test_payload_shape(self):
-        self.assertEqual(self.payload["page"]["followers"], 2725)
-        self.assertEqual(len(self.payload["results"]["daily"]), 82)
-        self.assertEqual(len(self.payload["audience"]["cities"]), 10)
-        self.assertEqual(len(self.payload["audience"]["countries"]), 10)
+        self.assertEqual(self.payload["page"]["followers"], 2743)
+        self.assertEqual(len(self.payload["months"]), 3)
         json.dumps(self.payload)
 
 
