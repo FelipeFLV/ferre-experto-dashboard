@@ -350,6 +350,10 @@ def post_media_ids(post):
     return list(dict.fromkeys(ids))
 
 
+def has_insight_data(insights):
+    return any(latest_value(points) is not None for points in insights.values())
+
+
 def fetch_post_insights(api, post):
     last_error = None
     for object_id in post_insight_ids(post) + post_media_ids(post):
@@ -358,7 +362,7 @@ def fetch_post_insights(api, post):
         except MetaAPIError as exc:
             last_error = exc
             continue
-        if any(insights.get(metric) for metric in POST_METRICS):
+        if has_insight_data(insights):
             return insights
     if last_error and not post_media_ids(post):
         print(

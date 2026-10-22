@@ -260,7 +260,7 @@ class PostMappingTests(unittest.TestCase):
         def handler(path, params):
             seen.append(path)
             if not path.startswith(f"{media_id}/insights"):
-                return {"data": []}
+                return insights_response("post_media_view", None)
             metrics = params["metric"].split(",")
             return {"data": [insights_response(metric, values[metric])["data"][0] for metric in metrics]}
 
