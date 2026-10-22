@@ -8,11 +8,13 @@ const state = {
   videosOnly: false,
   expanded: new Set(),
   trendChart: null,
+  range: { start: "", end: "" },
 };
 
 const NUMBER = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 0 });
 const DECIMAL = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const DATE_SHORT = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short" });
+const DATE_MED = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short", year: "numeric" });
 const DATE_LONG = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "long", year: "numeric" });
 const DATE_TIME = new Intl.DateTimeFormat("es-PE", {
   day: "2-digit",
@@ -72,6 +74,30 @@ function formatDateShort(iso) {
   return DATE_SHORT.format(parseDate(iso));
 }
 
+function formatDateMed(iso) {
+  return DATE_MED.format(parseDate(iso));
+}
+
+function shiftDate(iso, days) {
+  const value = parseDate(iso);
+  value.setDate(value.getDate() + days);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function dataRange() {
+  const daily = state.data.results.daily;
+  return {
+    start: daily.length ? daily[0].date : "",
+    end: daily.length ? daily[daily.length - 1].date : "",
+  };
+}
+
+function daysInRange(start, end) {
+  const first = parseDate(start);
+  const last = parseDate(end);
+  return Math.round((last - first) / 86400000) + 1;
+}
+
 function formatCutoff(iso) {
   const [year, month, day] = iso.split("-");
   return `${day}/${month}/${year}`;
@@ -108,28 +134,54 @@ function monthLabel(key) {
 }
 
 function rangeLabel() {
+  if (state.month === "custom") {
+    return `${formatDate(state.range.start)} – ${formatDate(state.range.end)}`;
+  }
   const months = state.data.months;
   if (!months.length) return "";
   return months.length === 1 ? months[0].label : `${months[0].label} – ${months[months.length - 1].label}`;
 }
 
-function currentTotals() {
-  if (state.month === "all") {
-    return state.data.results.daily.reduce((acc, row) => {
-      acc.views += row.views;
-      acc.viewers += row.viewers;
-      acc.visits += row.visits;
-      acc.follows += row.follows;
-      return acc;
-    }, { views: 0, viewers: 0, visits: 0, follows: 0 });
+function selectedDailyRows() {
+  const rows = state.data.results.daily;
+  if (state.month === "custom") {
+    return rows.filter((row) => row.date >= state.range.start && row.date <= state.range.end);
   }
-  return state.data.results.monthly.find((row) => row.month === state.month) || { views: 0, viewers: 0, visits: 0, follows: 0 };
+  if (state.month === "all") return rows;
+  return rows.filter((row) => row.date.startsWith(state.month));
+}
+
+function currentTotals() {
+  return selectedDailyRows().reduce((acc, row) => {
+    acc.views += row.views;
+    acc.viewers += row.viewers;
+    acc.visits += row.visits;
+    acc.follows += row.follows;
+    return acc;
+  }, { views: 0, viewers: 0, visits: 0, follows: 0 });
 }
 
 function previousTotals() {
+  if (state.month === "custom") return null;
   const index = state.data.months.findIndex((month) => month.key === state.month);
   if (index <= 0) return null;
   return state.data.results.monthly[index - 1];
+}
+
+function monthlyRows() {
+  const grouped = {};
+  for (const row of selectedDailyRows()) {
+    const key = row.date.slice(0, 7);
+    if (!grouped[key]) {
+      grouped[key] = { month: key, views: 0, viewers: 0, visits: 0, follows: 0 };
+    }
+    for (const metric of ["views", "viewers", "visits", "follows"]) {
+      grouped[key][metric] += row[metric];
+    }
+  }
+  return state.data.months
+    .filter((meta) => grouped[meta.key])
+    .map((meta) => grouped[meta.key]);
 }
 
 function setupHeader() {
@@ -144,18 +196,91 @@ function setupHeader() {
   document.querySelector("#followers-label").textContent = NUMBER.format(state.data.page.followers);
 
   const select = document.querySelector("#period-select");
-  const options = [{ key: "all", label: "Todo el período" }].concat(
-    state.data.months.map((month) => ({ key: month.key, label: monthLabel(month.key) }))
-  );
+  const options = [{ key: "all", label: "Todo el período" }]
+    .concat(state.data.months.map((month) => ({ key: month.key, label: monthLabel(month.key) })))
+    .concat([{ key: "custom", label: "Rango personalizado" }]);
   select.innerHTML = options
     .map((option) => `<option value="${escapeHtml(option.key)}">${escapeHtml(option.label)}</option>`)
     .join("");
+  select.value = state.month;
+  setupCustomRange();
+}
+
+function setupCustomRange() {
+  const limits = dataRange();
+  const startInput = document.querySelector("#range-start");
+  const endInput = document.querySelector("#range-end");
+  startInput.min = limits.start;
+  startInput.max = limits.end;
+  endInput.min = limits.start;
+  endInput.max = limits.end;
+  if (!state.range.start || !state.range.end) {
+    state.range = { start: limits.start, end: limits.end };
+  }
+  startInput.value = state.range.start;
+  endInput.value = state.range.end;
+  toggleCustomRange();
+}
+
+function toggleCustomRange() {
+  const isCustom = state.month === "custom";
+  const box = document.querySelector("#custom-range");
+  box.hidden = !isCustom;
+  if (!isCustom) document.querySelector("#range-error").textContent = "";
+}
+
+function syncRangeUrl() {
+  const url = new URL(window.location.href);
+  if (state.month === "custom") {
+    url.searchParams.set("from", state.range.start);
+    url.searchParams.set("to", state.range.end);
+  } else {
+    url.searchParams.delete("from");
+    url.searchParams.delete("to");
+  }
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function applyRangeInputs() {
+  const start = document.querySelector("#range-start").value;
+  const end = document.querySelector("#range-end").value;
+  const error = document.querySelector("#range-error");
+  const limits = dataRange();
+  if (!start || !end) {
+    error.textContent = "Selecciona ambas fechas.";
+    return;
+  }
+  if (start < limits.start || end > limits.end) {
+    error.textContent = `Disponible del ${formatDateMed(limits.start)} al ${formatDateMed(limits.end)}.`;
+    return;
+  }
+  if (start > end) {
+    error.textContent = "La fecha inicial no puede ser posterior a la final.";
+    return;
+  }
+  state.range = { start, end };
+  error.textContent = "";
+  syncRangeUrl();
+  renderKPIs();
+  renderTrendChart();
+  renderPosts();
+}
+
+function applyRangeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const start = params.get("from");
+  const end = params.get("to");
+  if (!start || !end) return;
+  const limits = dataRange();
+  if (start < limits.start || end > limits.end || start > end) return;
+  state.month = "custom";
+  state.range = { start, end };
 }
 
 function renderKPIs() {
   const totals = currentTotals();
   const previous = previousTotals();
-  const activeMonth = state.month === "all" ? null : monthMeta(state.month);
+  const activeMonth = state.month === "all" || state.month === "custom" ? null : monthMeta(state.month);
   const isPartial = Boolean(activeMonth && activeMonth.partial);
 
   ["views", "viewers", "visits", "follows"].forEach((key) => {
@@ -164,6 +289,10 @@ function renderKPIs() {
     delta.className = "kpi-delta";
     delta.textContent = "";
 
+    if (state.month === "custom") {
+      delta.textContent = `${NUMBER.format(daysInRange(state.range.start, state.range.end))} días del rango`;
+      return;
+    }
     if (state.month === "all") {
       delta.textContent = rangeLabel();
       return;
@@ -182,7 +311,7 @@ function renderKPIs() {
     delta.classList.add(change >= 0 ? "is-up" : "is-down");
   });
 
-  const caption = state.month === "all"
+  const caption = state.month === "all" || state.month === "custom"
     ? `${rangeLabel()} · datos al ${formatCutoff(state.data.page.cutoff)}.`
     : `${monthLabel(state.month)} · datos al ${formatCutoff(state.data.page.cutoff)}.`;
   document.querySelector("#period-caption").textContent = caption;
@@ -199,11 +328,11 @@ function renderTrendChart() {
   let values = [];
 
   if (state.granularity === "monthly") {
-    const monthly = state.data.results.monthly;
+    const monthly = monthlyRows();
     labels = monthly.map((row) => monthMeta(row.month).short);
     values = monthly.map((row) => row[metric]);
   } else {
-    const rows = state.data.results.daily.filter((row) => state.month === "all" || row.date.startsWith(state.month));
+    const rows = selectedDailyRows();
     labels = rows.map((row) => formatDateShort(row.date));
     values = rows.map((row) => row[metric]);
   }
@@ -264,9 +393,11 @@ function renderTrendChart() {
     });
   }
 
-  const scope = state.granularity === "monthly"
+  const scope = state.month === "custom"
     ? rangeLabel()
-    : state.month === "all" ? "Todo el período" : monthLabel(state.month);
+    : state.granularity === "monthly"
+      ? rangeLabel()
+      : state.month === "all" ? "Todo el período" : monthLabel(state.month);
   document.querySelector("#chart-note").textContent = `${scope} · serie ${state.granularity === "daily" ? "diaria" : "mensual"} · Fuente: Meta Graph API.`;
 }
 
@@ -278,8 +409,80 @@ function detailBlock(label, value) {
   return `<div class="metric"><div class="metric-label">${escapeHtml(label)}</div><div class="metric-value">${escapeHtml(value)}</div></div>`;
 }
 
-function detailItems(post) {
-  const metrics = post.metrics;
+const RANGE_ADDITIVE_KEYS = [
+  "views",
+  "interactions",
+  "reactions",
+  "comments",
+  "shares",
+  "totalClicks",
+  "linkClicks",
+  "otherClicks",
+  "photoClicks",
+  "secondsViewed",
+  "threeSecondViews",
+  "oneMinuteViews",
+];
+
+const ALL_METRIC_KEYS = RANGE_ADDITIVE_KEYS.concat([
+  "viewers",
+  "reach",
+  "threeSecondViewers",
+  "oneMinuteViewers",
+  "duration",
+  "averageSecondsViewed",
+]);
+
+function snapshotMetrics(postId, day) {
+  const snapshots = (state.data.postHistory || {})[postId] || [];
+  const snapshot = snapshots.find((item) => item.date === day);
+  return snapshot ? snapshot.metrics || {} : null;
+}
+
+function emptyMetrics() {
+  return ALL_METRIC_KEYS.reduce((acc, key) => {
+    acc[key] = null;
+    return acc;
+  }, {});
+}
+
+function postRangeMetrics(post) {
+  if (state.month !== "custom") return null;
+  const { start, end } = state.range;
+  if (!start || !end || post.date < start || post.date > end) return null;
+
+  const endMetrics = snapshotMetrics(post.id, end);
+  if (!endMetrics) return null;
+
+  const hasBase = post.date < start;
+  const baseMetrics = hasBase ? snapshotMetrics(post.id, shiftDate(start, -1)) : {};
+  if (hasBase && !baseMetrics) return null;
+
+  const metrics = emptyMetrics();
+  for (const key of RANGE_ADDITIVE_KEYS) {
+    const current = endMetrics[key];
+    const base = hasBase ? baseMetrics[key] : 0;
+    if (current == null || (hasBase && base == null)) continue;
+    metrics[key] = Math.max(0, current - (base || 0));
+  }
+
+  metrics.duration = endMetrics.duration ?? null;
+  const watched = metrics.secondsViewed;
+  if (watched != null && metrics.views > 0) {
+    metrics.averageSecondsViewed = watched / metrics.views;
+  } else {
+    metrics.averageSecondsViewed = endMetrics.averageSecondsViewed ?? null;
+  }
+
+  if (!Object.values(metrics).some((value) => value != null)) return null;
+  const denominator = metrics.reach ?? metrics.views;
+  const engagementRate = denominator > 0 && metrics.interactions != null
+    ? (metrics.interactions / denominator) * 100
+    : null;
+  return { metrics, engagementRate };
+}
+
+function detailItems(post, metrics = post.metrics) {
   const items = [
     ["Clics en foto", number(metrics.photoClicks)],
     ["Otros clics", number(metrics.otherClicks)],
@@ -300,29 +503,48 @@ function detailItems(post) {
 
 function postCard(post) {
   const isExpanded = state.expanded.has(post.id);
+  const rangeMode = state.month === "custom";
+  const range = rangeMode ? postRangeMetrics(post) : null;
+  const metricsValues = range ? range.metrics : post.metrics;
+  const engagementRate = range ? range.engagementRate : post.engagementRate;
+  const showMetrics = !rangeMode || Boolean(range);
   const caption = post.caption
     ? `<p class="post-caption">${escapeHtml(post.caption)}</p>`
     : `<p class="post-caption is-empty">Video publicado el ${escapeHtml(formatDate(post.date))}.</p>`;
+  const placeholderDetail = showMetrics
+    ? post.isVideo ? "Métricas de reproducción disponibles" : "Métricas de la publicación disponibles"
+    : "Disponible en la publicación original";
   const media = post.image
     ? `<img src="${escapeHtml(post.image)}" alt="Publicación del ${escapeHtml(formatDate(post.date))}" loading="lazy" width="640" height="800">`
-    : `<div class="post-placeholder"><div><strong>${post.isVideo ? "Video sin captura" : "Publicación sin captura"}</strong><span>${post.isVideo ? "Métricas de reproducción disponibles" : "Métricas de la publicación disponibles"}</span></div></div>`;
+    : `<div class="post-placeholder"><div><strong>${post.isVideo ? "Video sin captura" : "Publicación sin captura"}</strong><span>${placeholderDetail}</span></div></div>`;
   const link = post.permalink
     ? `<a class="post-link" href="${escapeHtml(post.permalink)}" target="_blank" rel="noopener">Ver publicación ↗</a>`
     : "";
-  const audienceValue = post.metrics.reach != null ? post.metrics.reach : post.metrics.viewers;
+  const audienceValue = metricsValues.reach != null ? metricsValues.reach : metricsValues.viewers;
   const metrics = [
-    ["Views", number(post.metrics.views)],
-    [post.metrics.reach != null ? "Alcance" : "Viewers", number(audienceValue)],
-    ["Interacciones", number(post.metrics.interactions)],
-    ["Engagement", percent(post.engagementRate)],
-    ["Reacciones", number(post.metrics.reactions)],
-    ["Comentarios", number(post.metrics.comments)],
-    ["Compartidos", number(post.metrics.shares)],
-    ["Clics totales", number(post.metrics.totalClicks)],
-    ["Clics enlace", number(post.metrics.linkClicks)],
+    ["Views", number(metricsValues.views)],
+    [metricsValues.reach != null ? "Alcance" : "Viewers", number(audienceValue)],
+    ["Interacciones", number(metricsValues.interactions)],
+    ["Engagement", percent(engagementRate)],
+    ["Reacciones", number(metricsValues.reactions)],
+    ["Comentarios", number(metricsValues.comments)],
+    ["Compartidos", number(metricsValues.shares)],
+    ["Clics totales", number(metricsValues.totalClicks)],
+    ["Clics enlace", number(metricsValues.linkClicks)],
   ].map(([label, value]) => metricBlock(label, value)).join("");
 
-  const detail = detailItems(post).map(([label, value]) => detailBlock(label, value)).join("");
+  const missingNote = rangeMode && !range
+    ? `<p class="post-range-note">Métricas por publicación no disponibles para este rango.</p>`
+    : "";
+  const detail = showMetrics
+    ? detailItems(post, metricsValues).map(([label, value]) => detailBlock(label, value)).join("")
+    : "";
+  const detailControl = showMetrics
+    ? `<button type="button" class="detail-toggle" data-toggle="${escapeHtml(post.id)}" aria-expanded="${isExpanded}">
+          ${isExpanded ? "Ocultar detalle" : "Ver detalle completo"}
+        </button>
+        <div class="post-detail"${isExpanded ? "" : " hidden"}>${detail}</div>`
+    : "";
 
   return `
     <article class="post-card">
@@ -334,11 +556,8 @@ function postCard(post) {
         </div>
         ${caption}
         ${link}
-        <div class="metrics-grid">${metrics}</div>
-        <button type="button" class="detail-toggle" data-toggle="${escapeHtml(post.id)}" aria-expanded="${isExpanded}">
-          ${isExpanded ? "Ocultar detalle" : "Ver detalle completo"}
-        </button>
-        <div class="post-detail"${isExpanded ? "" : " hidden"}>${detail}</div>
+        ${showMetrics ? `<div class="metrics-grid">${metrics}</div>` : missingNote}
+        ${detailControl}
       </div>
     </article>
   `;
@@ -347,19 +566,29 @@ function postCard(post) {
 function filteredPosts() {
   const query = state.query.trim().toLowerCase();
   const posts = state.data.posts.filter((post) => {
-    if (state.month !== "all" && post.month !== state.month) return false;
+    if (state.month === "custom") {
+      if (post.date < state.range.start || post.date > state.range.end) return false;
+    } else if (state.month !== "all" && post.month !== state.month) {
+      return false;
+    }
     if (state.videosOnly && !post.isVideo) return false;
     if (query && !`${post.caption} ${post.type}`.toLowerCase().includes(query)) return false;
     return true;
   });
 
-  const audienceValue = (post) => post.metrics.reach ?? post.metrics.viewers ?? -1;
+  const metricsFor = (post) => state.month === "custom"
+    ? postRangeMetrics(post)?.metrics || {}
+    : post.metrics;
+  const engagementFor = (post) => state.month === "custom"
+    ? postRangeMetrics(post)?.engagementRate ?? -1
+    : post.engagementRate ?? -1;
+  const audienceValue = (post) => metricsFor(post).reach ?? metricsFor(post).viewers ?? -1;
   const sorters = {
     date: (a, b) => b.date.localeCompare(a.date),
     reach: (a, b) => audienceValue(b) - audienceValue(a),
-    views: (a, b) => (b.metrics.views || -1) - (a.metrics.views || -1),
-    interactions: (a, b) => (b.metrics.interactions || -1) - (a.metrics.interactions || -1),
-    engagement: (a, b) => (b.engagementRate || -1) - (a.engagementRate || -1),
+    views: (a, b) => (metricsFor(b).views ?? -1) - (metricsFor(a).views ?? -1),
+    interactions: (a, b) => (metricsFor(b).interactions ?? -1) - (metricsFor(a).interactions ?? -1),
+    engagement: (a, b) => engagementFor(b) - engagementFor(a),
   };
   return posts.sort(sorters[state.sort] || sorters.date);
 }
@@ -368,6 +597,29 @@ function renderPosts() {
   const posts = filteredPosts();
   const grid = document.querySelector("#posts-grid");
   const empty = document.querySelector("#posts-empty");
+  const subtitle = document.querySelector("#posts-subtitle");
+  const note = document.querySelector("#posts-range-note");
+  const isCustom = state.month === "custom";
+  const hasRangeMetrics = isCustom && posts.some((post) => postRangeMetrics(post));
+
+  subtitle.textContent = isCustom
+    ? "Publicaciones del rango seleccionado."
+    : "Rendimiento acumulado de cada publicación al cierre del período.";
+  if (!isCustom || !posts.length) {
+    note.hidden = true;
+    note.textContent = "";
+  } else if (hasRangeMetrics) {
+    note.hidden = false;
+    note.textContent = state.data.postHistoryStart
+      ? `Métricas calculadas con los snapshots diarios. Historial desde el ${formatDateMed(state.data.postHistoryStart)}. Viewers y alcance únicos no están disponibles por rango.`
+      : "Métricas calculadas con los snapshots diarios. Viewers y alcance únicos no están disponibles por rango.";
+  } else {
+    note.hidden = false;
+    note.textContent = state.data.postHistoryStart
+      ? `Métricas por publicación no disponibles para este rango. El historial comienza el ${formatDateMed(state.data.postHistoryStart)}.`
+      : "Métricas por publicación no disponibles para rangos históricos. Se guardarán a partir del primer snapshot diario.";
+  }
+
   grid.innerHTML = posts.map(postCard).join("");
   empty.hidden = posts.length > 0;
 }
@@ -494,10 +746,15 @@ function renderAudience() {
 function bindEvents() {
   document.querySelector("#period-select").addEventListener("change", (event) => {
     state.month = event.target.value;
+    toggleCustomRange();
+    syncRangeUrl();
     renderKPIs();
     renderTrendChart();
     renderPosts();
   });
+
+  document.querySelector("#range-start").addEventListener("change", applyRangeInputs);
+  document.querySelector("#range-end").addEventListener("change", applyRangeInputs);
 
   document.querySelector("#metric-chips").addEventListener("click", (event) => {
     const button = event.target.closest("[data-metric]");
@@ -556,6 +813,7 @@ async function init() {
     const response = await fetch("data.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.data = await response.json();
+    applyRangeFromUrl();
     if (typeof Chart !== "undefined") {
       Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
       Chart.defaults.color = "#5f5f5f";

@@ -7,12 +7,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "archive"
+HISTORY_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "post-history"
 
 
 class BuildTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.payload = build.build_payload(FIXTURES)
+        cls.payload = build.build_payload(FIXTURES, HISTORY_FIXTURES)
         cls.posts = cls.payload["posts"]
         cls.months = {row["month"]: row for row in cls.payload["results"]["monthly"]}
 
@@ -63,6 +64,13 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(video["metrics"]["interactions"], 238)
         self.assertIsNone(video["metrics"]["reach"])
         self.assertEqual(video["engagementRate"], 76.8)
+
+    def test_post_history_is_loaded_for_known_posts(self):
+        history = self.payload["postHistory"]
+        video_id = "657698394862718_1647944423485062"
+        self.assertEqual(self.payload["postHistoryStart"], "2026-10-21")
+        self.assertEqual([item["date"] for item in history[video_id]], ["2026-10-21", "2026-10-22"])
+        self.assertEqual(history[video_id][-1]["metrics"]["views"], 310)
 
     def test_audience_is_empty_without_api_demographics(self):
         self.assertEqual(self.payload["audience"], {"ageGender": [], "cities": [], "countries": []})

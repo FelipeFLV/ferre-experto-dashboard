@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 ARCHIVE = DATA / "archive"
+POST_HISTORY = DATA / "post-history"
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
 ASSETS = ROOT / "assets" / "posts"
@@ -109,6 +110,26 @@ def load_archives(archive_dir=None):
     return archives
 
 
+def load_post_history(history_dir=None):
+    history_dir = Path(history_dir or POST_HISTORY)
+    if not history_dir.exists():
+        return {}
+    history = {}
+    for path in sorted(history_dir.glob("*.json")):
+        try:
+            payload = json.loads(read_text(path))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"JSON inválido en {path}: {exc}") from None
+        day = str(payload.get("date") or path.stem)
+        for post_id, metrics in (payload.get("posts") or {}).items():
+            history.setdefault(str(post_id), []).append(
+                {"date": day, "metrics": metrics or {}}
+            )
+    for snapshots in history.values():
+        snapshots.sort(key=lambda item: item["date"])
+    return history
+
+
 def archive_cutoff(archive):
     first, last = month_bounds(archive["month"])
     fetched = str(archive.get("fetched_at") or "")[:10]
@@ -165,8 +186,9 @@ def build_audience(archives):
     return target
 
 
-def build_payload(archive_dir=None):
+def build_payload(archive_dir=None, history_dir=None):
     archives = load_archives(archive_dir)
+    post_history = load_post_history(history_dir)
     latest = archives[-1]
     cutoff = archive_cutoff(latest)
 
@@ -219,6 +241,15 @@ def build_payload(archive_dir=None):
     posts.sort(key=lambda item: item["date"], reverse=True)
 
     page = latest.get("page") or {}
+    available_history = {
+        post_id: post_history[post_id]
+        for post_id in posts_by_id
+        if post_history.get(post_id)
+    }
+    history_start = min(
+        (item["date"] for snapshots in available_history.values() for item in snapshots),
+        default=None,
+    )
     return {
         "page": {
             "name": page.get("name", "Ferre Experto Pacasmayo"),
@@ -229,6 +260,8 @@ def build_payload(archive_dir=None):
         "months": months,
         "results": {"daily": daily, "monthly": monthly},
         "posts": posts,
+        "postHistory": available_history,
+        "postHistoryStart": history_start,
         "audience": build_audience(archives),
     }
 

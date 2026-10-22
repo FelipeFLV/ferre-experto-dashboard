@@ -5,6 +5,7 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 ## Contenido
 
 - `data/archive/`: JSON mensual descargado de Meta Graph API. Es la fuente del dashboard.
+- `data/post-history/`: snapshots diarios de métricas `lifetime` por publicación, usados para calcular rangos personalizados futuros.
 - `data/*.csv`: exports históricos de Meta Business Suite, conservados solo como referencia.
 - `assets/posts/`: capturas originales de las publicaciones (`YYYY-MM-DD.png`).
 - `src/`: HTML, CSS, JavaScript y Chart.js vendorizado.
@@ -12,8 +13,9 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 - `build.py`: lee `data/archive/*.json`, calcula agregados, meses dinámicos y genera `dist/`.
 - `serve.py`: servidor local para previsualizar `dist/`.
 - `fetch_meta.py`: descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`.
+- `snapshot_posts.py`: guarda `data/post-history/YYYY-MM-DD.json` con las métricas `lifetime` de cada publicación.
 - `meta_page_token.py`: asistente local para obtener un Page Access Token de larga duración sin Business Portfolio.
-- `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/` para no depender de métricas que cambian.
+- `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/` y `tests/fixtures/post-history/` para no depender de métricas que cambian.
 
 ## Requisitos
 
@@ -40,7 +42,8 @@ Abre `http://127.0.0.1:8000/`. También puedes hacer doble clic en `Actualizar D
 2. El workflow guarda `data/archive/YYYY-MM.json`, lo commitea si cambiaron las métricas y, al terminar, Pages reconstruye y publica el dashboard. Si solo cambia `fetched_at`, no guarda, no commitea y no redeploya. El dashboard muestra la fecha de actualización del archive.
 3. Para backfill o correcciones, ejecuta el workflow con un mes explícito (`YYYY-MM`).
 4. Las capturas viven en `assets/posts/` con el nombre `YYYY-MM-DD.png`; si falta una, se muestra un placeholder.
-5. En local: `python3 build.py` y `python3 serve.py`.
+5. El workflow **Snapshot post metrics** corre a diario a las **23:55 Perú (04:55 UTC)** y guarda las métricas acumuladas de las publicaciones. Si no hay cambios reales, no commitea ni redeploya.
+6. En local: `python3 build.py` y `python3 serve.py`.
 
 ## Automatización con Meta API
 
@@ -108,11 +111,22 @@ También puedes ejecutar el workflow manual **Fetch Meta insights** desde GitHub
 
 El dashboard consume directamente esos archivos. El workflow corre automáticamente el día 1 a las **08:00 Perú (13:00 UTC)**, descarga el mes anterior, commitea el archivo y publica el sitio. También puedes ejecutarlo manualmente para backfill.
 
+### Snapshots por publicación
+
+Meta entrega las métricas de cada publicación de forma acumulada (`lifetime`) y no permite consultar un rango histórico con `since`/`until`. Para que los rangos personalizados futuros tengan métricas por publicación, el workflow **Snapshot post metrics** guarda a diario:
+
+```bash
+set -a; source .env; set +a
+python3 snapshot_posts.py
+```
+
+El archivo queda en `data/post-history/YYYY-MM-DD.json`. El workflow corre a las 23:55 Perú para capturar el cierre del día. Para calcular un rango futuro se comparan el snapshot del último día del rango y el del día anterior al inicio; las métricas únicas como viewers o alcance no son aditivas y se muestran como `—`. Si el snapshot se ejecuta manualmente a otra hora, el corte queda a esa hora.
+
 ## Publicar en GitHub Pages
 
 1. Crea un repositorio **público** y sube el contenido de esta carpeta (`fanpage-dashboard/`) como raíz del repositorio.
 2. En GitHub, entra a **Settings → Pages → Build and deployment** y selecciona **Source: GitHub Actions**.
-3. Empuja a `main` o ejecuta **Fetch Meta insights**. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega; también se dispara al completar el fetch mensual.
+3. Empuja a `main` o ejecuta **Fetch Meta insights** / **Snapshot post metrics**. El workflow `.github/workflows/pages.yml` corre los tests, genera `dist/` y lo despliega; también se dispara al completar el fetch mensual o el snapshot diario.
 4. La URL queda como `https://<usuario>.github.io/<repositorio>/`.
 
 Si el workflow falla con `Resource not accessible by integration`, habilita Pages manualmente en **Settings → Pages → Build and deployment → Source: GitHub Actions** y vuelve a ejecutar el workflow.
@@ -127,6 +141,8 @@ python3 -m unittest discover -s tests -v
 
 - Solo métricas orgánicas del fanpage; anuncios y campañas quedan fuera.
 - Los KPIs mensuales suman los días del archivo hasta la fecha de corte. El mes en curso se marca como parcial y no se compara como mes cerrado.
+- Los rangos personalizados suman exactamente los días seleccionados. El gráfico diario y el mensual se recalculan con esas filas; no usan totales mensuales precalculados.
+- En rangos personalizados, las publicaciones se filtran por fecha de publicación. Sus métricas solo aparecen si existen snapshots diarios del rango; los rangos anteriores al primer snapshot se muestran sin métricas por publicación.
 - `Engagement = interacciones / alcance`; si Meta no expone alcance por publicación, se usa Views como denominador. Se muestra `—` cuando no hay base comparable.
 - Meta puede no devolver edad, género, ciudad o país; en ese caso el panel lo indica.
 - Las métricas por publicación son acumuladas (`lifetime`) hasta el corte, no solo del mes de publicación.

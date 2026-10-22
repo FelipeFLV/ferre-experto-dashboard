@@ -183,6 +183,40 @@ p {
   cursor: pointer;
 }
 
+.custom-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #c9c6c1;
+  font-size: 12px;
+}
+
+.custom-range[hidden] {
+  display: none;
+}
+
+.custom-range label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.custom-range input {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: #fff;
+  border-radius: 10px;
+  padding: 7px 9px;
+  font: inherit;
+  color-scheme: dark;
+}
+
+.range-error {
+  color: #ffb4a8;
+  font-size: 11px;
+}
+
 .site-nav {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -602,6 +636,16 @@ p {
   text-decoration: underline;
 }
 
+.post-range-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f5f2ee;
+  color: #6f6962;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .post-detail {
   border-top: 1px dashed var(--line);
   padding-top: 12px;
@@ -705,6 +749,25 @@ p {
   .header-tools {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .custom-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .custom-range label {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .custom-range input {
+    width: 100%;
+  }
+
+  .range-error {
+    grid-column: 1 / -1;
   }
 
   .kpi-grid {

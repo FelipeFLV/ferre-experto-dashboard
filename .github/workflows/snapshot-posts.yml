@@ -1,0 +1,53 @@
+name: Snapshot post metrics
+
+on:
+  schedule:
+    - cron: "55 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot-posts
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Capture metrics
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+        run: |
+          target_date=$(TZ=America/Lima date +%F)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Lima date +%H)" -lt 6 ]; then
+            target_date=$(TZ=America/Lima date -d 'yesterday' +%F)
+          fi
+          python3 snapshot_posts.py --date "$target_date"
+
+      - name: Commit snapshot
+        run: |
+          if [ -z "$(git status --porcelain -- data/post-history)" ]; then
+            echo "Sin cambios en data/post-history"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/post-history
+          git commit -m "data: actualizar snapshot de publicaciones"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: post-history
+          path: data/post-history/*.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -32,6 +32,11 @@
           <span>Período</span>
           <select id="period-select" aria-label="Seleccionar período"></select>
         </label>
+        <div id="custom-range" class="custom-range" hidden>
+          <label>Desde <input type="date" id="range-start" aria-label="Fecha inicial"></label>
+          <label>Hasta <input type="date" id="range-end" aria-label="Fecha final"></label>
+          <span id="range-error" class="range-error" role="alert"></span>
+        </div>
       </div>
     </div>
     <nav class="site-nav" aria-label="Secciones del dashboard">
@@ -99,7 +104,7 @@
       <div class="section-head">
         <p class="eyebrow">Contenido</p>
         <h1>Publicaciones</h1>
-        <p class="section-sub">Rendimiento acumulado de cada publicación al cierre del período.</p>
+        <p class="section-sub" id="posts-subtitle">Rendimiento acumulado de cada publicación al cierre del período.</p>
       </div>
 
       <div class="toolbar">
@@ -123,6 +128,7 @@
         </label>
       </div>
 
+      <p id="posts-range-note" class="note" hidden></p>
       <div id="posts-grid" class="posts-grid" aria-live="polite"></div>
       <p id="posts-empty" class="empty" hidden>No hay publicaciones para este período.</p>
     </section>
