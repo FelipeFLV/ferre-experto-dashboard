@@ -439,6 +439,7 @@ def build_post(api, post):
         "permalink": post.get("permalink_url") or None,
         "image": None,
         "isVideo": is_video,
+        "mediaIds": post_media_ids(post),
         "metrics": {
             "views": views,
             "viewers": viewers,
