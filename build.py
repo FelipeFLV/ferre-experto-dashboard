@@ -1,3 +1,4 @@
+import csv
 import json
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 ARCHIVE = DATA / "archive"
 POST_HISTORY = DATA / "post-history"
+AUDIENCE_CSV = DATA / "audience.csv"
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
 ASSETS = ROOT / "assets" / "posts"
@@ -173,8 +175,72 @@ def image_for(day, extension):
     return None
 
 
-def build_audience(archives):
+def to_percent(value):
+    text = "" if value is None else str(value).strip().replace("%", "")
+    if not text or text.lower() in ("none", "nan"):
+        return None
+    if "," in text and "." not in text:
+        text = text.replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def read_audience_csv(path=None):
+    path = Path(path or AUDIENCE_CSV)
+    if not path.exists():
+        return {}
+    raw = path.read_bytes()
+    text = raw.decode("utf-16") if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else raw.decode("utf-8-sig")
+    result = {"ageGender": [], "cities": [], "countries": []}
+    section = None
+    pending = None
+    for row in csv.reader(text.splitlines()):
+        cells = [cell.strip() for cell in row]
+        if not any(cells):
+            continue
+        first = cells[0]
+        if first.lower().startswith("sep="):
+            continue
+        normalized = first.lower().replace("&", "and").replace("  ", " ").strip()
+        if normalized == "age and gender":
+            section = "ageGender"
+            pending = None
+            continue
+        if normalized == "top cities":
+            section = "cities"
+            pending = None
+            continue
+        if normalized == "top countries":
+            section = "countries"
+            pending = None
+            continue
+        if section == "ageGender":
+            if not first or len(cells) < 3:
+                continue
+            men = to_percent(cells[1])
+            women = to_percent(cells[2])
+            if men is not None and women is not None:
+                result["ageGender"].append({"age": first, "men": men, "women": women})
+        elif section in ("cities", "countries"):
+            if pending is None:
+                pending = cells
+                continue
+            for name, value in zip(pending, cells):
+                pct = to_percent(value)
+                if name and pct is not None:
+                    result[section].append({"name": name, "pct": pct})
+            pending = None
+    for key in ("cities", "countries"):
+        result[key].sort(key=lambda item: item["pct"], reverse=True)
+        result[key] = result[key][:10]
+    return result
+
+
+def build_audience(archives, audience_csv=None):
     target = {"ageGender": [], "cities": [], "countries": []}
+    used_csv = False
     for archive in reversed(archives):
         raw = archive.get("audience") or {}
         candidate = {
@@ -183,11 +249,18 @@ def build_audience(archives):
             "countries": raw.get("countries") or [],
         }
         if any(candidate.values()):
-            return candidate
+            target = candidate
+            break
+    exported = read_audience_csv(audience_csv)
+    for key in target:
+        if not target[key] and exported.get(key):
+            target[key] = exported[key]
+            used_csv = True
+    target["source"] = "business-suite" if used_csv else ("api" if any(target.values()) else None)
     return target
 
 
-def build_payload(archive_dir=None, history_dir=None):
+def build_payload(archive_dir=None, history_dir=None, audience_csv=None):
     archives = load_archives(archive_dir)
     post_history = load_post_history(history_dir)
     latest = archives[-1]
@@ -263,7 +336,7 @@ def build_payload(archive_dir=None, history_dir=None):
         "posts": posts,
         "postHistory": available_history,
         "postHistoryStart": history_start,
-        "audience": build_audience(archives),
+        "audience": build_audience(archives, audience_csv),
     }
 
 

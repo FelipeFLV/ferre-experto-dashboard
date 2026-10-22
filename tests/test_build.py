@@ -9,12 +9,13 @@ import build
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "archive"
 HISTORY_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "post-history"
+AUDIENCE_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "audience.csv"
 
 
 class BuildTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.payload = build.build_payload(FIXTURES, HISTORY_FIXTURES)
+        cls.payload = build.build_payload(FIXTURES, HISTORY_FIXTURES, AUDIENCE_FIXTURES)
         cls.posts = cls.payload["posts"]
         cls.months = {row["month"]: row for row in cls.payload["results"]["monthly"]}
 
@@ -81,12 +82,51 @@ class BuildTests(unittest.TestCase):
                 "partial": True,
                 "posts": {"657698394862718_1647944423485062": {"views": 319}},
             }), encoding="utf-8")
-            payload = build.build_payload(FIXTURES, directory)
+            payload = build.build_payload(FIXTURES, directory, AUDIENCE_FIXTURES)
         self.assertEqual(payload["postHistory"], {})
         self.assertIsNone(payload["postHistoryStart"])
 
-    def test_audience_is_empty_without_api_demographics(self):
-        self.assertEqual(self.payload["audience"], {"ageGender": [], "cities": [], "countries": []})
+    def test_audience_uses_csv_when_api_is_empty(self):
+        audience = self.payload["audience"]
+        self.assertEqual(audience["source"], "business-suite")
+        self.assertEqual(audience["ageGender"][0], {"age": "18-24", "men": 10.0, "women": 20.0})
+        self.assertEqual(audience["cities"][0], {"name": "Lima, Peru", "pct": 50.0})
+        self.assertEqual(audience["countries"][0], {"name": "Peru", "pct": 90.0})
+
+    def test_audience_keeps_api_data_and_fills_missing_sections(self):
+        archives = [{
+            "audience": {
+                "ageGender": [{"age": "18-24", "men": 1.0, "women": 2.0}],
+                "cities": [],
+                "countries": [],
+            },
+        }]
+        audience = build.build_audience(archives, AUDIENCE_FIXTURES)
+        self.assertEqual(audience["ageGender"], [{"age": "18-24", "men": 1.0, "women": 2.0}])
+        self.assertEqual(audience["cities"][0]["name"], "Lima, Peru")
+        self.assertEqual(audience["source"], "business-suite")
+
+    def test_audience_is_empty_without_csv(self):
+        payload = build.build_payload(FIXTURES, HISTORY_FIXTURES, Path("/missing/audience.csv"))
+        self.assertEqual(payload["audience"], {
+            "ageGender": [],
+            "cities": [],
+            "countries": [],
+            "source": None,
+        })
+
+    def test_audience_csv_supports_utf16_exports(self):
+        content = '\n'.join([
+            "sep=,",
+            '"Age & gender"',
+            '"","Men","Women"',
+            '"25-34","45,5","54,5"',
+        ])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audience.csv"
+            path.write_bytes(content.encode("utf-16"))
+            audience = build.read_audience_csv(path)
+        self.assertEqual(audience["ageGender"], [{"age": "25-34", "men": 45.5, "women": 54.5}])
 
     def test_zero_reach_falls_back_to_views(self):
         self.assertIsNone(build.engagement_rate(10, 0, None))

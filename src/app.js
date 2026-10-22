@@ -630,6 +630,14 @@ function renderAudience() {
   const ageGender = audience.ageGender || [];
   const cities = audience.cities || [];
   const countries = audience.countries || [];
+  const note = document.querySelector("#audience-note");
+  if (note) {
+    note.textContent = audience.source === "business-suite"
+      ? "Datos demográficos del export de Meta Business Suite. El resto de métricas proviene de la API."
+      : audience.source === "api"
+        ? "Datos demográficos de Meta Graph API."
+        : "No hay datos demográficos disponibles. Exporta la audiencia desde Meta Business Suite y reemplaza data/audience.csv.";
+  }
 
   const showEmpty = (selector, text) => {
     const canvas = document.querySelector(selector);
@@ -643,13 +651,16 @@ function renderAudience() {
   } else {
     const men = ageGender.reduce((sum, row) => sum + row.men, 0);
     const women = ageGender.reduce((sum, row) => sum + row.women, 0);
+    const audienceTotal = men + women;
+    const menPct = audienceTotal > 0 ? (men / audienceTotal) * 100 : 0;
+    const womenPct = audienceTotal > 0 ? (women / audienceTotal) * 100 : 0;
 
     new Chart(document.querySelector("#audience-gender"), {
       type: "doughnut",
       data: {
         labels: ["Hombres", "Mujeres"],
         datasets: [{
-          data: [men, women],
+          data: [menPct, womenPct],
           backgroundColor: ["#c62828", "#1c1c1c"],
           borderColor: "#ffffff",
           borderWidth: 3,

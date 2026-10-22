@@ -6,7 +6,8 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 
 - `data/archive/`: JSON mensual descargado de Meta Graph API. Es la fuente del dashboard.
 - `data/post-history/`: snapshots diarios de métricas `lifetime` por publicación, usados para calcular rangos personalizados futuros.
-- `data/*.csv`: exports históricos de Meta Business Suite, conservados solo como referencia.
+- `data/audience.csv`: export de audiencia de Meta Business Suite (edad/género, ciudades y países). Se usa como fallback porque Meta dejó de exponer esos desgloses vía API.
+- `data/*.csv`: otros exports históricos de Meta Business Suite, conservados como referencia.
 - `assets/posts/`: capturas originales de las publicaciones (`YYYY-MM-DD.png`).
 - `src/`: HTML, CSS, JavaScript y Chart.js vendorizado.
 - `dist/`: sitio generado. No se versiona; lo reconstruye el build o GitHub Actions.
@@ -15,7 +16,7 @@ Sitio estático con las métricas del fanpage: comportamiento general, publicaci
 - `fetch_meta.py`: descarga un mes cerrado desde la Graph API y lo guarda en `data/archive/YYYY-MM.json`.
 - `snapshot_posts.py`: guarda `data/post-history/YYYY-MM-DD.json` con las métricas `lifetime` de cada publicación.
 - `meta_page_token.py`: asistente local para obtener un Page Access Token de larga duración sin Business Portfolio.
-- `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/` y `tests/fixtures/post-history/` para no depender de métricas que cambian.
+- `tests/`: pruebas de ingestión, totales y reglas de negocio. Los tests de `build.py` usan archivos fijos en `tests/fixtures/archive/`, `tests/fixtures/post-history/` y `tests/fixtures/audience.csv` para no depender de métricas que cambian.
 
 ## Requisitos
 
@@ -121,6 +122,10 @@ python3 snapshot_posts.py
 ```
 
 El archivo queda en `data/post-history/YYYY-MM-DD.json`. El workflow corre a las 23:55 Perú para capturar el cierre del día. Para calcular un rango futuro se comparan el snapshot del último día del rango y el del día anterior al inicio; las métricas únicas como viewers o alcance no son aditivas y se muestran como `—`. Un snapshot capturado antes de las 23:00 se marca como parcial y no se usa para calcular rangos.
+
+### Audiencia
+
+Meta dejó de exponer edad, género, ciudad y país vía API. Para actualizar esos gráficos, descarga el export de audiencia desde Meta Business Suite y reemplaza `data/audience.csv`; el build lo usa automáticamente cuando la API no devuelve esos desgloses. El parser acepta UTF-8 o UTF-16 y espera las secciones `Age & gender`, `Top cities` y `Top countries`.
 
 ## Publicar en GitHub Pages
 
