@@ -840,7 +840,51 @@ function pdfPage(content, { className = "", showHead = true } = {}) {
   </section>`;
 }
 
-function pdfSummaryPage(row, previous, meta) {
+function pdfStatStrip(items, className = "") {
+  return `<div class="pdf-stat-strip ${className}">${items.map(([label, value]) => `
+    <div class="pdf-stat">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `).join("")}</div>`;
+}
+
+function pdfPostSummary(posts) {
+  const views = posts.reduce((sum, post) => sum + (post.metrics?.views || 0), 0);
+  const interactions = posts.reduce((sum, post) => sum + (post.metrics?.interactions || 0), 0);
+  const engagement = posts
+    .map((post) => post.engagementRate)
+    .filter((value) => Number.isFinite(value));
+  const averageEngagement = engagement.length
+    ? engagement.reduce((sum, value) => sum + value, 0) / engagement.length
+    : null;
+
+  return pdfStatStrip([
+    ["Publicaciones", number(posts.length)],
+    ["Views totales", number(views)],
+    ["Interacciones", number(interactions)],
+    ["Engagement promedio", averageEngagement == null ? "—" : percent(averageEngagement)],
+  ], "is-posts");
+}
+
+function pdfEvolutionSummary(rows, row) {
+  const peak = rows.reduce((best, current) => (!best || current.views > best.views ? current : best), null);
+  const average = rows.length ? row.views / rows.length : 0;
+  return pdfStatStrip([
+    ["Día con más views", peak ? `${formatDateShort(peak.date)} · ${number(peak.views)}` : "—"],
+    ["Promedio diario", number(average)],
+    ["Días con datos", number(rows.length)],
+    ["Follows netos", number(row.follows)],
+  ], "is-evolution");
+}
+
+function pdfAudienceSource(source) {
+  if (source === "business-suite") return "Business Suite";
+  if (source === "api") return "Graph API";
+  return "Sin datos";
+}
+
+function pdfSummaryPage(row, previous, meta, daily, posts) {
   const isPartial = Boolean(meta.partial);
   const kpis = PDF_METRIC_KEYS.map((key) => {
     const delta = pdfDelta(row, previous, key, isPartial);
@@ -871,6 +915,21 @@ function pdfSummaryPage(row, previous, meta) {
         <h2>Lectura del período</h2>
         <p>${escapeHtml(pdfGrowthNarrative(row, previous, isPartial))}</p>
       </div>
+      ${pdfStatStrip([
+        ["Publicaciones", number(posts.length)],
+        ["Seguidores al corte", number(state.data.page.followers)],
+        ["Días con datos", number(daily.length)],
+        ["Corte", formatCutoff(state.data.page.cutoff)],
+      ], "is-context")}
+      <div class="pdf-summary-agenda">
+        <p class="pdf-section-kicker">Contenido del informe</p>
+        <div class="pdf-agenda-grid">
+          <div class="pdf-agenda-item"><span>01</span><div><strong>Resumen ejecutivo</strong><small>KPIs y contexto del mes</small></div></div>
+          <div class="pdf-agenda-item"><span>02</span><div><strong>Evolución diaria</strong><small>Series de las cuatro métricas</small></div></div>
+          <div class="pdf-agenda-item"><span>03</span><div><strong>Publicaciones</strong><small>Fichas y lectura del contenido</small></div></div>
+          <div class="pdf-agenda-item"><span>04</span><div><strong>Audiencia y método</strong><small>Alcance, fuentes y notas</small></div></div>
+        </div>
+      </div>
       <p class="pdf-summary-meta">Actualizado ${escapeHtml(formatUpdated(state.data.page.updatedAt))} · Fuente: Meta Graph API.</p>
     </div>
   `, { className: "pdf-summary", showHead: false });
@@ -894,14 +953,27 @@ function pdfEvolutionPage(rows, row) {
       <p class="pdf-section-note">Serie diaria de las cuatro métricas principales.</p>
     </div>
     ${rows.length ? `<div class="pdf-chart-grid">${cards}</div>` : `<p class="pdf-empty">No hay datos diarios para este mes.</p>`}
+    <div class="pdf-insight-box">
+      <h2>Hallazgos de la evolución</h2>
+      ${pdfEvolutionSummary(rows, row)}
+    </div>
   `);
+}
+
+function pdfCaption(text, limit = 300) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  if (clean.length <= limit) return clean;
+  const cut = clean.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 0 ? lastSpace : limit).trim()}…`;
 }
 
 function pdfMetricBlock(label, value) {
   return `<div class="pdf-metric"><span class="pdf-metric-label">${escapeHtml(label)}</span><span class="pdf-metric-value">${escapeHtml(value)}</span></div>`;
 }
 
-function pdfPostCard(post) {
+function pdfPostCard(post, captionLimit = 300) {
   const metrics = post.metrics || {};
   const audienceValue = metrics.reach != null ? metrics.reach : metrics.viewers;
   const values = [
@@ -919,7 +991,7 @@ function pdfPostCard(post) {
     ? `<img src="${escapeHtml(post.image)}" alt="Publicación del ${escapeHtml(formatDate(post.date))}">`
     : `<div class="pdf-post-placeholder"><strong>${post.isVideo ? "Video sin captura" : "Publicación sin captura"}</strong><span>Disponible en la publicación original</span></div>`;
   const caption = post.caption
-    ? `<p class="pdf-post-caption">${escapeHtml(post.caption)}</p>`
+    ? `<p class="pdf-post-caption">${escapeHtml(pdfCaption(post.caption, captionLimit))}</p>`
     : `<p class="pdf-post-caption is-empty">Video publicado el ${escapeHtml(formatDate(post.date))}.</p>`;
 
   return `<article class="pdf-post-card">
@@ -933,6 +1005,26 @@ function pdfPostCard(post) {
       <div class="pdf-metrics-grid">${values.map(([label, value]) => pdfMetricBlock(label, value)).join("")}</div>
     </div>
   </article>`;
+}
+
+function pdfPostHighlights(posts) {
+  const withViews = posts.filter((post) => Number.isFinite(post.metrics?.views));
+  const topViews = [...withViews].sort((a, b) => b.metrics.views - a.metrics.views)[0];
+  const withEngagement = posts.filter((post) => Number.isFinite(post.engagementRate));
+  const topEngagement = [...withEngagement].sort((a, b) => b.engagementRate - a.engagementRate)[0];
+  const parts = [];
+
+  if (topViews) {
+    parts.push(`La publicación con más views fue la del ${formatDateShort(topViews.date)} (${number(topViews.metrics.views)}).`);
+  }
+  if (topEngagement) {
+    parts.push(`El mejor engagement fue el de la publicación del ${formatDateShort(topEngagement.date)} (${percent(topEngagement.engagementRate)}).`);
+  }
+
+  return `<div class="pdf-insight-box">
+    <h2>Lectura de las publicaciones</h2>
+    <p>${escapeHtml(parts.join(" "))}</p>
+  </div>`;
 }
 
 function pdfPostsPages(posts) {
@@ -949,13 +1041,20 @@ function pdfPostsPages(posts) {
   const pages = [];
   for (let index = 0; index < posts.length; index += PDF_POSTS_PER_PAGE) {
     const chunk = posts.slice(index, index + PDF_POSTS_PER_PAGE);
+    const gridClass = chunk.length === 1 ? "is-single" : chunk.length === 2 ? "is-sparse" : "is-compact";
+    const captionLimit = gridClass === "is-compact" ? 160 : 300;
+    const summary = index === 0 ? pdfPostSummary(posts) : "";
+    const highlights = index === 0 && chunk.length <= 2 ? pdfPostHighlights(posts) : "";
     pages.push(pdfPage(`
       <div class="pdf-section-head">
         <p class="pdf-eyebrow">Contenido</p>
         <h1>${index === 0 ? "Publicaciones del mes" : "Publicaciones (continuación)"}</h1>
         <p class="pdf-section-note">${posts.length} publicaciones · todas las del mes, sin filtros de búsqueda, orden o tipo.</p>
       </div>
-      <div class="pdf-post-grid">${chunk.map(pdfPostCard).join("")}</div>
+      ${summary}
+      <div class="pdf-post-grid ${gridClass}">${chunk.map((post) => pdfPostCard(post, captionLimit)).join("")}</div>
+      ${highlights}
+      <p class="pdf-page-note">Métricas por publicación acumuladas hasta el corte; no corresponden solo al mes de publicación.</p>
     `));
   }
   return pages;
@@ -985,6 +1084,12 @@ function pdfAudiencePage() {
       <h1>Audiencia</h1>
       <p class="pdf-section-note">Seguidores del fanpage: <strong>${escapeHtml(NUMBER.format(state.data.page.followers))}</strong> al corte. La audiencia es una foto fija y no cambia con el mes.</p>
     </div>
+    ${pdfStatStrip([
+      ["Seguidores", number(state.data.page.followers)],
+      ["Fuente demográfica", pdfAudienceSource(audience.source)],
+      ["Ciudades", number(cities.length)],
+      ["Países", number(countries.length)],
+    ], "is-audience")}
     <div class="pdf-audience-grid">
       ${pdfAudiencePanel("gender", "Género", ageGender.length > 0, "Meta no devuelve el desglose por género vía API.")}
       ${pdfAudiencePanel("age", "Edad y género", ageGender.length > 0, "Meta no devuelve el desglose por edad vía API.")}
@@ -996,26 +1101,73 @@ function pdfAudiencePage() {
 }
 
 function pdfMethodologyPage() {
+  const daily = state.data.results.daily.filter((row) => row.date.startsWith(state.month));
+  const posts = state.data.posts.filter((post) => post.month === state.month || post.date.startsWith(state.month));
+
   return pdfPage(`
     <div class="pdf-section-head">
       <p class="pdf-eyebrow">Transparencia</p>
       <h1>Metodología y notas</h1>
       <p class="pdf-section-note">Cómo leer este informe y de dónde salen los números.</p>
     </div>
-    <div class="pdf-prose">
-      <p><strong>Fuente:</strong> Graph API de Meta (Page Insights) del fanpage Ferre Experto Pacasmayo. <strong>Fecha de corte:</strong> ${escapeHtml(formatCutoff(state.data.page.cutoff))}. <strong>Actualizado:</strong> ${escapeHtml(formatUpdated(state.data.page.updatedAt))}.</p>
-      <ul>
-        <li><strong>Views:</strong> veces que se vieron las publicaciones del fanpage.</li>
-        <li><strong>Viewers:</strong> personas únicas que vieron contenido.</li>
-        <li><strong>Visits:</strong> visitas a la página del fanpage.</li>
-        <li><strong>Follows:</strong> seguidores netos ganados en el período.</li>
-        <li><strong>Viewers:</strong> personas únicas que vieron una publicación; Meta no expone alcance por publicación vía API.</li>
-        <li><strong>Interacciones:</strong> reacciones + comentarios + compartidos.</li>
-        <li><strong>Engagement:</strong> interacciones divididas entre alcance o, si no hay alcance, entre views. Se muestra “—” cuando no hay base comparable.</li>
-      </ul>
-      <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron. El mes en curso se marca como parcial y no se compara como un mes cerrado.</p>
+    ${pdfStatStrip([
+      ["Fuente", "Meta Graph API"],
+      ["Corte", formatCutoff(state.data.page.cutoff)],
+      ["Publicaciones", number(posts.length)],
+      ["Días con datos", number(daily.length)],
+    ], "is-method")}
+    <div class="pdf-method-grid">
+      <div class="pdf-prose">
+        <h2>Definiciones</h2>
+        <ul>
+          <li><strong>Views:</strong> veces que se vieron las publicaciones del fanpage.</li>
+          <li><strong>Viewers:</strong> personas únicas que vieron contenido.</li>
+          <li><strong>Visits:</strong> visitas a la página del fanpage.</li>
+          <li><strong>Follows:</strong> seguidores netos ganados en el período.</li>
+          <li><strong>Viewers por publicación:</strong> personas únicas que vieron una publicación; Meta no expone alcance por publicación vía API.</li>
+          <li><strong>Interacciones:</strong> reacciones + comentarios + compartidos.</li>
+          <li><strong>Engagement:</strong> interacciones divididas entre alcance o, si no hay alcance, entre views. Se muestra “—” cuando no hay base comparable.</li>
+        </ul>
+      </div>
+      <aside class="pdf-method-side">
+        <div class="pdf-method-card">
+          <h2>Ficha del reporte</h2>
+          <dl>
+            <div><dt>Mes</dt><dd>${escapeHtml(monthLabel(state.month))}</dd></div>
+            <div><dt>Actualizado</dt><dd>${escapeHtml(formatUpdated(state.data.page.updatedAt))}</dd></div>
+            <div><dt>Seguidores</dt><dd>${escapeHtml(number(state.data.page.followers))}</dd></div>
+            <div><dt>Comparación</dt><dd>Mes anterior</dd></div>
+          </dl>
+        </div>
+        <div class="pdf-method-card">
+          <h2>Alcance</h2>
+          <p>Las métricas por publicación son acumuladas (<em>lifetime</em>) hasta la fecha de corte, no solo del mes en que se publicaron.</p>
+        </div>
+      </aside>
+    </div>
+    <div class="pdf-method-notes">
+      <h2>Notas</h2>
+      <p>El mes en curso se marca como parcial y no se compara como un mes cerrado. Las variaciones se calculan contra el mes anterior; si el mes está en curso, la comparación es preliminar.</p>
       <p>La audiencia corresponde a los seguidores del fanpage y es una foto fija al corte; no cambia con el selector de mes. Meta dejó de exponer la demografía vía API, por lo que se usa el export de Meta Business Suite cuando está disponible.</p>
-      <p>Reporte generado automáticamente desde el dashboard. Las variaciones se calculan contra el mes anterior; si el mes está en curso, la comparación es preliminar.</p>
+      <p>Reporte generado automáticamente desde el dashboard de Ferre Experto Pacasmayo.</p>
+    </div>
+    <div class="pdf-method-extra">
+      <div class="pdf-method-extra-card">
+        <h2>Trazabilidad</h2>
+        <ul>
+          <li><strong>Fanpage y publicaciones:</strong> Meta Graph API.</li>
+          <li><strong>Audiencia:</strong> export de Meta Business Suite cuando está disponible.</li>
+          <li><strong>Consolidación:</strong> dashboard de Ferre Experto Pacasmayo.</li>
+        </ul>
+      </div>
+      <div class="pdf-method-extra-card">
+        <h2>Criterios de lectura</h2>
+        <ul>
+          <li><strong>Mes cerrado:</strong> comparación completa contra el mes anterior.</li>
+          <li><strong>Mes en curso:</strong> datos al corte; comparación preliminar.</li>
+          <li><strong>Publicaciones:</strong> métricas acumuladas, no solo del mes.</li>
+        </ul>
+      </div>
     </div>
   `);
 }
@@ -1171,7 +1323,7 @@ function buildPdfReport(monthKey) {
     .filter((post) => post.month === monthKey || post.date.startsWith(monthKey))
     .sort((a, b) => b.date.localeCompare(a.date));
   const pages = [
-    pdfSummaryPage(row, previous, meta),
+    pdfSummaryPage(row, previous, meta, daily, posts),
     pdfEvolutionPage(daily, row),
     ...pdfPostsPages(posts),
     pdfAudiencePage(),
@@ -1236,6 +1388,8 @@ async function downloadPdfReport() {
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+    pdf.setDisplayMode("fullpage");
+    pdf.viewerPreferences({ FitWindow: true, PrintScaling: "None" });
     pdf.setProperties({
       title: `Reporte mensual ${monthLabel(state.month)}`,
       subject: "Métricas del fanpage Ferre Experto Pacasmayo",
