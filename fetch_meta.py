@@ -466,7 +466,7 @@ def fetch_posts(api, page_id, first, last):
     params = {
         "fields": "id,created_time,message,permalink_url,from{id,name},shares,comments.summary(true).limit(0),reactions.summary(true).limit(0),attachments{media_type,target,subattachments}",
         "since": first.isoformat(),
-        "until": (last + timedelta(days=1)).isoformat(),
+        "until": (last + timedelta(days=2)).isoformat(),
         "limit": 100,
     }
     posts = []

@@ -133,6 +133,32 @@ class InsightParsingTests(unittest.TestCase):
         self.assertNotIn("post_clicks", parsed)
 
 
+class FetchPostsTests(unittest.TestCase):
+    def test_includes_post_created_after_utc_midnight(self):
+        seen = []
+
+        def handler(path, params):
+            if path.endswith("/posts"):
+                seen.append(params)
+                return {
+                    "data": [
+                        {
+                            "id": "page_1",
+                            "created_time": "2026-10-22T00:01:26+0000",
+                            "message": "Publicación nocturna",
+                            "attachments": {"data": []},
+                        }
+                    ]
+                }
+            return {"data": []}
+
+        posts = fetch_meta.fetch_posts(
+            FakeAPI(handler), "page", date(2026, 10, 1), date(2026, 10, 21)
+        )
+        self.assertEqual([post["date"] for post in posts], ["2026-10-21"])
+        self.assertEqual(seen[0]["until"], "2026-10-23")
+
+
 class PostMappingTests(unittest.TestCase):
     def test_post_type(self):
         self.assertEqual(fetch_meta.post_type({"attachments": {"data": [{"media_type": "video"}]}}), ("Video", True))
