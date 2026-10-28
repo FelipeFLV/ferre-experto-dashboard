@@ -2,8 +2,8 @@
   "month": "2026-10",
   "since": "2026-10-01",
   "until": "2026-10-31",
-  "cutoff": "2026-10-27",
-  "fetched_at": "2026-10-27T13:28:06-05:00",
+  "cutoff": "2026-10-28",
+  "fetched_at": "2026-10-28T13:33:54-05:00",
   "page": {
     "id": "657698394862718",
     "name": "Ferre Experto Pacasmayo",
@@ -198,6 +198,13 @@
       "viewers": 14,
       "visits": 1,
       "follows": 0
+    },
+    {
+      "date": "2026-10-28",
+      "views": 44,
+      "viewers": 8,
+      "visits": 14,
+      "follows": 0
     }
   ],
   "posts": [
@@ -210,7 +217,7 @@
       "image": null,
       "isVideo": true,
       "metrics": {
-        "views": 368,
+        "views": 370,
         "viewers": null,
         "reach": null,
         "interactions": 243,
@@ -221,9 +228,9 @@
         "linkClicks": 1,
         "otherClicks": 64,
         "photoClicks": null,
-        "secondsViewed": 153153,
-        "averageSecondsViewed": 280,
-        "threeSecondViews": 368,
+        "secondsViewed": 153187,
+        "averageSecondsViewed": 278,
+        "threeSecondViews": 370,
         "oneMinuteViews": null,
         "threeSecondViewers": null,
         "oneMinuteViewers": null,
@@ -240,8 +247,8 @@
       "image": null,
       "isVideo": false,
       "metrics": {
-        "views": 1557,
-        "viewers": 779,
+        "views": 1580,
+        "viewers": 783,
         "reach": null,
         "interactions": 38,
         "reactions": 30,
