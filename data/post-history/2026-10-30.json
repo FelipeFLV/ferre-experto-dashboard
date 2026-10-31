@@ -1,7 +1,7 @@
 {
   "date": "2026-10-30",
-  "partial": true,
-  "fetched_at": "2026-10-30T06:03:42-05:00",
+  "partial": false,
+  "fetched_at": "2026-10-31T05:38:42-05:00",
   "posts": {
     "657698394862718_1647944423485062": {
       "views": 373,
@@ -15,7 +15,7 @@
       "linkClicks": 1,
       "otherClicks": 64,
       "photoClicks": null,
-      "secondsViewed": 153245,
+      "secondsViewed": 153246,
       "averageSecondsViewed": 275,
       "threeSecondViews": 373,
       "oneMinuteViews": null,
@@ -24,8 +24,8 @@
       "duration": null
     },
     "657698394862718_1705230774940185": {
-      "views": 1590,
-      "viewers": 785,
+      "views": 1591,
+      "viewers": 786,
       "reach": null,
       "interactions": 38,
       "reactions": 30,
@@ -44,8 +44,8 @@
       "duration": null
     },
     "657698394862718_1669592481837348": {
-      "views": 1456,
-      "viewers": 593,
+      "views": 1457,
+      "viewers": 595,
       "reach": null,
       "interactions": 43,
       "reactions": 41,
@@ -64,7 +64,7 @@
       "duration": null
     },
     "657698394862718_1668666988596564": {
-      "views": 1045,
+      "views": 1046,
       "viewers": 418,
       "reach": null,
       "interactions": 25,
@@ -84,8 +84,8 @@
       "duration": null
     },
     "657698394862718_1662832932513303": {
-      "views": 481,
-      "viewers": 232,
+      "views": 482,
+      "viewers": 233,
       "reach": null,
       "interactions": 4,
       "reactions": 4,
@@ -104,7 +104,7 @@
       "duration": null
     },
     "657698394862718_1661178066012123": {
-      "views": 856,
+      "views": 857,
       "viewers": null,
       "reach": null,
       "interactions": 23,
@@ -124,8 +124,8 @@
       "duration": null
     },
     "657698394862718_1656399976489932": {
-      "views": 607,
-      "viewers": 270,
+      "views": 608,
+      "viewers": 271,
       "reach": null,
       "interactions": 7,
       "reactions": 7,
@@ -144,8 +144,8 @@
       "duration": null
     },
     "657698394862718_1637334641729799": {
-      "views": 1507,
-      "viewers": 728,
+      "views": 1508,
+      "viewers": 730,
       "reach": null,
       "interactions": 62,
       "reactions": 54,
@@ -164,8 +164,8 @@
       "duration": null
     },
     "657698394862718_1607536524709611": {
-      "views": 598,
-      "viewers": 323,
+      "views": 599,
+      "viewers": 324,
       "reach": null,
       "interactions": 7,
       "reactions": 5,
@@ -184,7 +184,7 @@
       "duration": null
     },
     "657698394862718_1605035714959692": {
-      "views": 739,
+      "views": 740,
       "viewers": null,
       "reach": null,
       "interactions": 19,
