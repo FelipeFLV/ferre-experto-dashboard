@@ -26,6 +26,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Check Meta token
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+        run: python3 fetch_meta.py --check-token
+
       - name: Download post images
         env:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}

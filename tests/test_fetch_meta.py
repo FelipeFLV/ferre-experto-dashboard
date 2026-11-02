@@ -13,6 +13,7 @@ class FakeAPI:
     def __init__(self, handler):
         self.handler = handler
         self.calls = []
+        self.token = "TOKEN"
 
     def get(self, path, params=None, retries=3):
         self.calls.append((path, params or {}))
@@ -470,6 +471,50 @@ class ArchiveTests(unittest.TestCase):
             saved = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(saved["daily"][0]["views"], 11)
             self.assertEqual(saved["fetched_at"], second["fetched_at"])
+
+
+class TokenCheckTests(unittest.TestCase):
+    def test_valid_token_without_expiry(self):
+        def handler(path, params):
+            if path == "debug_token":
+                return {"data": {"is_valid": True, "expires_at": 0, "scopes": ["pages_read_engagement"]}}
+            return {"id": "123", "name": "Ferre Experto Pacasmayo"}
+
+        api = FakeAPI(handler)
+        self.assertEqual(fetch_meta.check_token(api, "123"), 0)
+        self.assertEqual([call[0] for call in api.calls], ["debug_token", "123"])
+
+    def test_invalid_token_raises(self):
+        api = FakeAPI(lambda path, params: {"data": {"is_valid": False, "error": "revoked"}})
+        with self.assertRaises(fetch_meta.MetaAPIError) as context:
+            fetch_meta.check_token(api, "123")
+        self.assertIn("revoked", str(context.exception))
+
+    def test_expired_token_raises(self):
+        api = FakeAPI(
+            lambda path, params: {"data": {"is_valid": True, "expires_at": 100, "scopes": []}}
+        )
+        with self.assertRaises(fetch_meta.MetaAPIError) as context:
+            fetch_meta.check_token(api, "123", now=200)
+        self.assertIn("expiró", str(context.exception))
+
+    def test_debug_failure_falls_back_to_page_access(self):
+        def handler(path, params):
+            if path == "debug_token":
+                raise fetch_meta.MetaAPIError("debug not allowed", code=200)
+            return {"id": "123", "name": "Ferre Experto Pacasmayo"}
+
+        self.assertEqual(fetch_meta.check_token(FakeAPI(handler), "123"), 0)
+
+    def test_page_access_failure_has_actionable_message(self):
+        def handler(path, params):
+            if path == "debug_token":
+                return {"data": {"is_valid": True, "expires_at": 0, "scopes": []}}
+            raise fetch_meta.MetaAPIError("Cannot call API for app", code=200)
+
+        with self.assertRaises(fetch_meta.MetaAPIError) as context:
+            fetch_meta.check_token(FakeAPI(handler), "123")
+        self.assertIn("Regenera META_PAGE_TOKEN", str(context.exception))
 
 
 if __name__ == "__main__":

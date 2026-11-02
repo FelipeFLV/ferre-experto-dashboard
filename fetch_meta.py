@@ -597,6 +597,63 @@ def probe(api, page_id, first, last):
             print(f"audience {metric}: ERROR {exc}")
 
 
+def check_token(api, page_id, now=None):
+    now = int(time.time()) if now is None else int(now)
+    debug = None
+    debug_error = None
+
+    try:
+        payload = api.get("debug_token", {"input_token": api.token})
+        debug = payload.get("data", {})
+    except MetaAPIError as exc:
+        debug_error = exc
+
+    if debug is not None:
+        if not debug.get("is_valid", False):
+            detail = debug.get("error") or "Meta no devolvió detalle"
+            raise MetaAPIError(f"Token inválido: {detail}", code=190)
+
+        expires_at = debug.get("expires_at")
+        if expires_at == 0:
+            expiry = "sin expiración"
+        elif isinstance(expires_at, (int, float)) and expires_at > 0:
+            remaining = int(expires_at - now)
+            if remaining <= 0:
+                raise MetaAPIError(
+                    "El token de Meta expiró. Regenera META_PAGE_TOKEN y vuelve a guardarlo.",
+                    code=190,
+                )
+            if remaining < 3 * 86400:
+                expiry = f"expira en {max(1, remaining // 3600)} horas"
+            else:
+                expiry = f"expira en {remaining // 86400} días"
+        else:
+            expiry = "expiración desconocida"
+
+        scopes = ", ".join(debug.get("scopes", [])) or "no informados"
+        print(f"Token: {expiry}")
+        print(f"Permisos: {scopes}")
+    else:
+        print(
+            f"Aviso: no se pudo verificar la expiración del token ({debug_error}); "
+            "se comprobará el acceso a la página."
+        )
+
+    try:
+        page = api.get(str(page_id), {"fields": "id,name"})
+    except MetaAPIError as exc:
+        raise MetaAPIError(
+            "El token no puede acceder a la página. Puede haber expirado, sido revocado "
+            f"o perdido permisos. Regenera META_PAGE_TOKEN y vuelve a guardarlo. Detalle: {exc}",
+            code=getattr(exc, "code", None),
+            subcode=getattr(exc, "subcode", None),
+            error_type=getattr(exc, "error_type", None),
+        ) from None
+
+    print(f"Página: {page.get('name')} ({page.get('id')})")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Descarga las métricas mensuales del fanpage desde Meta Graph API."
@@ -607,6 +664,7 @@ def main(argv=None):
     parser.add_argument("--token", default=os.environ.get("META_PAGE_TOKEN"), help="Token de página. También META_PAGE_TOKEN.")
     parser.add_argument("--output", help="Ruta del JSON. Por defecto data/archive/YYYY-MM.json.")
     parser.add_argument("--probe", action="store_true", help="Comprueba permisos y métricas sin guardar datos.")
+    parser.add_argument("--check-token", action="store_true", help="Verifica la validez y expiración del token.")
     args = parser.parse_args(argv)
 
     if not args.token:
@@ -618,10 +676,13 @@ def main(argv=None):
     if args.current and args.month:
         parser.error("Usa --month o --current, no ambos.")
 
-    first, last = current_month_bounds() if args.current else month_bounds(args.month)
     api = GraphAPI(args.token)
 
     try:
+        if args.check_token:
+            return check_token(api, args.page_id)
+
+        first, last = current_month_bounds() if args.current else month_bounds(args.month)
         if args.probe:
             probe(api, args.page_id, first, last)
             return 0

@@ -825,8 +825,8 @@ p {
 }
 
 .pdf-cover-hero {
-  min-height: 340px;
-  padding: 48px 50px 42px;
+  min-height: 250px;
+  padding: 44px 50px 38px;
   background: var(--ink);
   color: #fff;
 }
@@ -895,7 +895,10 @@ p {
 }
 
 .pdf-summary-body {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
   padding: 30px 46px 0;
 }
 

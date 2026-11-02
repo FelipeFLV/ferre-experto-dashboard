@@ -92,15 +92,16 @@ Si el token se invalida por un cambio de contraseña, por revocar la app o por p
 
 No compartas el App Secret ni el token; no los pegues en el chat ni en el repositorio.
 
-### Comprobar permisos
+### Comprobar token y permisos
 
 ```bash
 export META_PAGE_TOKEN="..."
 export META_PAGE_ID="..."
+python3 fetch_meta.py --check-token
 python3 fetch_meta.py --probe
 ```
 
-El modo `--probe` solo informa qué métricas responden `OK` o `ERROR`; no guarda datos ni imprime el token.
+`--check-token` verifica validez, expiración, permisos y acceso a la página. `--probe` solo informa qué métricas responden `OK` o `ERROR`; ninguno guarda datos ni imprime el token. Los workflows de Meta ejecutan `--check-token` antes de consultar la API para fallar con un mensaje claro si el token expiró o fue revocado.
 
 ### Descargar un mes
 
