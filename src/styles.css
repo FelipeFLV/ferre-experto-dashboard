@@ -8,6 +8,7 @@
   --line: #e6e3de;
   --bg: #f5f4f1;
   --card: #ffffff;
+  --media-frame: #e6e1d8;
   --shadow: 0 14px 40px rgba(28, 28, 28, 0.08);
   --radius: 18px;
 }
@@ -511,7 +512,7 @@ p {
 .post-media {
   position: relative;
   aspect-ratio: 4 / 5;
-  background: #f0eeea;
+  background: var(--media-frame);
   overflow: hidden;
 }
 
@@ -1256,7 +1257,7 @@ p {
   position: relative;
   height: 160px;
   overflow: hidden;
-  background: #f0eeea;
+  background: var(--media-frame);
 }
 
 .pdf-post-media img {
