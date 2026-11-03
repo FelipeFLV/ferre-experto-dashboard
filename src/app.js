@@ -1362,6 +1362,27 @@ async function waitForImages(root) {
   }));
 }
 
+function fitPdfPostImages(root) {
+  // html2canvas ignores object-fit, so the image box is sized in pixels to keep its ratio.
+  root.querySelectorAll(".pdf-post-grid").forEach((grid) => {
+    const cover = grid.classList.contains("is-compact");
+    grid.querySelectorAll(".pdf-post-media").forEach((media) => {
+      const image = media.querySelector("img");
+      if (!image || !image.naturalWidth || !image.naturalHeight) return;
+      const boxWidth = media.clientWidth;
+      const boxHeight = media.clientHeight;
+      if (!boxWidth || !boxHeight) return;
+      const ratio = cover
+        ? Math.max(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight)
+        : Math.min(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight);
+      const round = cover ? Math.ceil : Math.floor;
+      image.style.width = `${Math.max(1, round(image.naturalWidth * ratio))}px`;
+      image.style.height = `${Math.max(1, round(image.naturalHeight * ratio))}px`;
+      image.style.margin = "auto";
+    });
+  });
+}
+
 async function downloadPdfReport() {
   if (state.pdfBusy) return;
   if (state.month === "all" || state.month === "custom" || !monthMeta(state.month)) return;
@@ -1382,6 +1403,7 @@ async function downloadPdfReport() {
     await waitForImages(report);
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     await nextFrame();
+    fitPdfPostImages(report);
 
     const pages = [...report.querySelectorAll(".pdf-page")];
     if (!pages.length) throw new Error("El reporte no tiene páginas.");
