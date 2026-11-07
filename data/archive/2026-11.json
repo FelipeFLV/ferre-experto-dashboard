@@ -2,8 +2,8 @@
   "month": "2026-11",
   "since": "2026-11-01",
   "until": "2026-11-30",
-  "cutoff": "2026-11-06",
-  "fetched_at": "2026-11-06T14:45:13-05:00",
+  "cutoff": "2026-11-07",
+  "fetched_at": "2026-11-07T12:53:43-05:00",
   "page": {
     "id": "657698394862718",
     "name": "Ferre Experto Pacasmayo",
@@ -50,6 +50,13 @@
       "views": 84,
       "viewers": 4,
       "visits": 14,
+      "follows": 0
+    },
+    {
+      "date": "2026-11-07",
+      "views": 2,
+      "viewers": 2,
+      "visits": 9,
       "follows": 0
     }
   ],
