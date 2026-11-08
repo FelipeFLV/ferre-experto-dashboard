@@ -34,9 +34,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* No poner display:block aquí: html2canvas mide métricas de fuente con una
+   imagen inline y la alineación del texto del PDF depende de esa medición. */
 img {
   max-width: 100%;
-  display: block;
 }
 
 button,
@@ -128,6 +129,7 @@ p {
 }
 
 .brand-mark img {
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -517,6 +519,7 @@ p {
 }
 
 .post-media img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -727,6 +730,7 @@ p {
 }
 
 .footer-brand img {
+  display: block;
   width: 230px;
   height: auto;
   padding: 7px 10px;
@@ -839,6 +843,7 @@ p {
 }
 
 .pdf-cover-brand img {
+  display: block;
   width: 190px;
   height: auto;
   padding: 6px 10px;
@@ -1219,6 +1224,7 @@ p {
 
 .pdf-post-grid.is-single .pdf-post-media img,
 .pdf-post-grid.is-sparse .pdf-post-media img {
+  display: block;
   position: absolute;
   inset: 0;
   margin: auto;
@@ -1261,6 +1267,7 @@ p {
 }
 
 .pdf-post-media img {
+  display: block;
   position: absolute;
   inset: 0;
   margin: auto;
